@@ -8,6 +8,7 @@ import {
   setSession,
   type NadiUser,
 } from "@/lib/nadiAuth";
+import { clearManagedProfile } from "@/hooks/useSubscriberProfileSync";
 
 type AuthState = {
   user: NadiUser | null;
@@ -70,10 +71,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       /* noop */
     }
     setIsGuest(false);
+    // If admin signs in, wipe any leftover subscriber-managed profile from a previous session.
+    if (res.user.role !== "user") clearManagedProfile();
     return res.user;
   }, []);
 
   const logout = useCallback(() => {
+    clearManagedProfile();
     clearSession();
     setUser(null);
     try {
@@ -85,6 +89,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const continueAsGuest = useCallback(() => {
+    clearManagedProfile();
     try {
       localStorage.setItem(GUEST_KEY, "1");
     } catch {

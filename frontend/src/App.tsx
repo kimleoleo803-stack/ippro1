@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useState, type ReactNode } from "react";
 import SplashScreen from "@/components/SplashScreen";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import { useSubscriberProfileSync } from "@/hooks/useSubscriberProfileSync";
 import Welcome from "./pages/Welcome.tsx";
 import Login from "./pages/Login.tsx";
 import Admin from "./pages/Admin.tsx";
@@ -46,8 +47,11 @@ const RequireAdmin = ({ children }: { children: ReactNode }) => {
   return <>{children}</>;
 };
 
-const AppRoutes = () => (
-  <Routes>
+const AppRoutes = () => {
+  const { user } = useAuth();
+  useSubscriberProfileSync(user ? { id: user.id, role: user.role } : null);
+  return (
+    <Routes>
     <Route path="/welcome" element={<Welcome />} />
     <Route path="/login" element={<Login />} />
     <Route path="/connect" element={<ConnectProfile />} />
@@ -104,8 +108,9 @@ const AppRoutes = () => (
     <Route path="/activate" element={<DeviceActivation />} />
     <Route path="/pair" element={<PairPortal />} />
     <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+    </Routes>
+  );
+};
 
 const App = () => {
   const [showSplash, setShowSplash] = useState<boolean>(() => {
