@@ -216,6 +216,52 @@ frontend:
     file: "android/app/src/main/java/com/livetv/app/nativeplayer/NativePlayerPlugin.java, src/native/nativePlayer.ts"
     stuck_count: 0
     priority: "medium"
+
+backend:
+  - task: "Local IPTV proxy (/api/iptv-proxy) — drop-in for Supabase edge function"
+    implemented: true
+    working: true
+    file: "backend/routes/iptv_proxy.py, backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            Added a pure-FastAPI clone of the Supabase iptv-proxy edge
+            function so the app runs without Supabase (preview + self-host).
+            Mirrors the edge function exactly: private-host blocking,
+            #EXTM3U body-magic detection, HLS playlist rewriting (incl.
+            URI="..." inside tags), UA forwarding, binary streaming,
+            x-proxy-kind debug headers.
+        - working: true
+          agent: "testing"
+          comment: |
+            All 11 tests passed: URL validation, private-host blocking,
+            scheme blocking, passthrough, m3u8 rewriting, POST json/text,
+            UA forwarding verified via httpbin.org/headers, binary
+            4096-byte pass-through, fake-m3u8 binary detection, and CORS
+            preflight. Production-ready.
+
+  - task: "Frontend proxy endpoint resolver (Supabase ↔ local fallback)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/lib/proxyEndpoint.ts, frontend/src/lib/streamProxy.ts, frontend/src/lib/proxy.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            proxyEndpoint() picks Supabase when VITE_SUPABASE_URL is set
+            to a real *.supabase.co host, otherwise falls back to
+            ${REACT_APP_BACKEND_URL}/api/iptv-proxy, otherwise same-origin
+            /api/iptv-proxy. Supabase auth headers are only sent when
+            actually talking to Supabase — keeps production Supabase
+            deployments working while unlocking self-host + preview.
+
     needs_retesting: true
     status_history:
         - working: "NA"
