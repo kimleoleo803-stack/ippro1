@@ -268,6 +268,47 @@ backend:
           agent: "main"
           comment: |
             Forced-package path no longer silently falls through to another
+
+  - task: "External launcher MIME + fallback fix (ERR_UNEXPECTED_PROXY_AUTH)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/lib/externalLauncher.ts, android/.../NativePlayerPlugin.java"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Root cause of user's video: tapping Live TV → "Open in VLC"
+            on phone browser landed on Chrome's ERR_UNEXPECTED_PROXY_AUTH.
+            Two bugs:
+              1. Intent MIME was `application/x-mpegURL` — many players'
+                 manifests (incl. some VLC / VidoPlay builds) don't match
+                 that narrow MIME, so the intent fell through.
+              2. `S.browser_fallback_url` was set to the raw stream URL
+                 — so on a fall-through, Chrome tried to play the m3u8
+                 itself, IPTV server returned 407, Chrome shows
+                 ERR_UNEXPECTED_PROXY_AUTH.
+            Fixes:
+              * Switched MIME to `video/*` for ALL video intents (VLC's
+                own docs recommend this, and every major player declares
+                `video/*` in its intent filter). Applied in both the
+                browser intent:// URL and the native Android plugin's
+                setDataAndType(), so `resolveActivity()` now succeeds.
+              * REMOVED `S.browser_fallback_url` entirely. When the chosen
+                package isn't installed, Chrome auto-redirects to its
+                Play Store listing — the intended "install prompt" UX —
+                instead of trying to play the raw stream.
+              * User-Agent now flows from the Account → Player Identity
+                preference into the intent extra `S.User-Agent`, so VLC
+                and MX Player send IPTVSmarters UA upstream.
+            Reproduced failing intent URL from video:
+              intent://Streamscreen4kplayer.xyz/live/.../397719.m3u8
+                #Intent;scheme=http;action=android.intent.action.VIEW;
+                 type=video/*;package=com.vidoplay.player;
+                 S.title=...;S.User-Agent=...;end
+
             app if VidoPlay isn't installed. Instead it resolves with
             { launched:false, reason:"not-installed", package } so the UI
             can offer an "Install" toast action. Added two plugin methods:

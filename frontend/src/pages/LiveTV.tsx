@@ -109,6 +109,7 @@ const LiveTV = () => {
           const ok = tryLaunchExternalFromBrowser(ch.streamUrl, {
             package: externalApp.androidPackage,
             title: ch.name,
+            userAgent: getUserAgent(),
           });
           if (ok) {
             toast.message(t("liveTV.sentToApp", { app: externalApp.label }));

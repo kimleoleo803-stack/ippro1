@@ -2,39 +2,52 @@
  * Browser-side helpers for launching an external video player.
  *
  * Strategy:
- *  - Android browsers: use a proper intent:// URL with
+ *  - Android browsers: open a proper intent:// URL with
  *      action=android.intent.action.VIEW
- *      type=<correct MIME>
+ *      type=video/*            (VLC's own docs recommend this — NOT the
+ *                               narrow `application/x-mpegURL`; many
+ *                               players' intent filters reject the
+ *                               narrow MIME and the intent falls through.)
  *      package=<user's chosen app>
- *      S.browser_fallback_url=<original stream URL>
- *    Fired via `window.location.href` **on a user gesture** (click / tap).
- *    If the chosen app isn't installed, Chrome will follow
- *    `browser_fallback_url` instead of erroring out.
+ *    Fired via `window.location.href` **on a user gesture** (tap).
+ *    **We intentionally do NOT set S.browser_fallback_url**: when the
+ *    chosen package isn't installed, Chrome auto-redirects to the
+ *    Play Store listing for that package (exactly the UX we want).
+ *    Setting the fallback to the raw stream URL causes Chrome to try
+ *    to play the m3u8 itself, which IPTV servers reject with
+ *    ERR_UNEXPECTED_PROXY_AUTH (407).
  *
- *  - iOS Safari: vlc-x-callback:// (VLC) or infuse:// scheme — tapped on a
- *    user gesture so Safari will prompt "Open this page in …?".
+ *  - iOS Safari: vlc-x-callback:// (VLC) — tapped on a user gesture so
+ *    Safari prompts "Open this page in VLC?".
  *
- *  - Desktop browsers: we never auto-navigate. The user taps a visible
- *    `<a href="vlc://…">` button, which is a safe user-gesture navigation.
+ *  - Desktop browsers: no auto-navigation. The UI shows a visible
+ *    `<a href="vlc://…">` button, a safe user-gesture navigation.
  */
 
+// VLC's Android intent documentation (https://wiki.videolan.org/Android_Player_Intents/)
+// explicitly recommends `video/*` for video of any kind. Most player apps
+// (VLC, VidoPlay, MX, Just Player, YTV Player) declare `video/*` in their
+// intent-filter but a subset do NOT declare `application/x-mpegURL`, so we
+// use the broadest MIME that still resolves correctly.
+const VIDEO_WILDCARD = "video/*";
+
 const MIME_BY_EXT: Array<[RegExp, string]> = [
-  [/\.m3u8(\?|$)/i, "application/x-mpegURL"],
-  [/\.ts(\?|$)/i, "video/mp2t"],
-  [/\.mpd(\?|$)/i, "application/dash+xml"],
-  [/\.mp4(\?|$)/i, "video/mp4"],
-  [/\.mkv(\?|$)/i, "video/x-matroska"],
-  [/\.webm(\?|$)/i, "video/webm"],
-  [/\.avi(\?|$)/i, "video/x-msvideo"],
-  [/\.mov(\?|$)/i, "video/quicktime"],
+  [/\.m3u8(\?|$)/i, VIDEO_WILDCARD],
+  [/\.ts(\?|$)/i, VIDEO_WILDCARD],
+  [/\.mpd(\?|$)/i, VIDEO_WILDCARD],
+  [/\.mp4(\?|$)/i, VIDEO_WILDCARD],
+  [/\.mkv(\?|$)/i, VIDEO_WILDCARD],
+  [/\.webm(\?|$)/i, VIDEO_WILDCARD],
+  [/\.avi(\?|$)/i, VIDEO_WILDCARD],
+  [/\.mov(\?|$)/i, VIDEO_WILDCARD],
 ];
 
-/** Best-guess MIME type for a stream URL. Falls back to `video/*`. */
+/** Best-guess MIME type for a stream URL. Always falls back to `video/*`. */
 export const guessMime = (url: string): string => {
   for (const [re, mime] of MIME_BY_EXT) {
     if (re.test(url)) return mime;
   }
-  return "video/*";
+  return VIDEO_WILDCARD;
 };
 
 export interface IntentOptions {
@@ -42,8 +55,10 @@ export interface IntentOptions {
   package?: string;
   /** MIME type override; auto-detected from URL when omitted. */
   mime?: string;
-  /** Title extra some players read (MX Player, VLC). */
+  /** Title extra read by MX Player / VLC. */
   title?: string;
+  /** Custom User-Agent extra read by VLC / MX Player for the HTTP fetch. */
+  userAgent?: string;
 }
 
 /**
@@ -58,7 +73,6 @@ export const buildAndroidIntentUrl = (
   if (!m) return streamUrl;
   const [, scheme, rest] = m;
   const mime = opts.mime ?? guessMime(streamUrl);
-  const fallback = encodeURIComponent(streamUrl);
 
   const parts: string[] = [
     `scheme=${scheme}`,
@@ -67,9 +81,12 @@ export const buildAndroidIntentUrl = (
   ];
   if (opts.package) parts.push(`package=${opts.package}`);
   if (opts.title) parts.push(`S.title=${encodeURIComponent(opts.title)}`);
-  // MX Player / VLC read the User-Agent from this extra.
-  parts.push(`S.User-Agent=${encodeURIComponent("ExoPlayer")}`);
-  parts.push(`S.browser_fallback_url=${fallback}`);
+  if (opts.userAgent) {
+    parts.push(`S.User-Agent=${encodeURIComponent(opts.userAgent)}`);
+  }
+  // NO S.browser_fallback_url — see module docstring above. If the chosen
+  // app isn't installed, Chrome will auto-redirect to its Play Store
+  // listing, which is exactly what we want.
   parts.push("end");
 
   return `intent://${rest}#Intent;${parts.join(";")}`;
@@ -112,7 +129,8 @@ export const tryLaunchExternalFromBrowser = (
     try {
       const intentUrl = buildAndroidIntentUrl(streamUrl, opts);
       // `location.href` on a user gesture is the official Chrome path.
-      // If the target app isn't installed, Chrome follows the fallback URL.
+      // If the target package isn't installed, Chrome redirects to the
+      // Play Store listing for that package.
       window.location.href = intentUrl;
       return true;
     } catch (e) {

@@ -280,14 +280,18 @@ public class NativePlayerPlugin extends Plugin {
     }
 
     private String guessMime(String url) {
-        String l = url.toLowerCase();
-        if (l.contains(".m3u8")) return "application/x-mpegURL";
-        if (l.endsWith(".ts") || l.contains(".ts?")) return "video/mp2t";
+        // VLC's own docs (https://wiki.videolan.org/Android_Player_Intents/)
+        // recommend `video/*` for all video intents. Many Android video
+        // players declare `video/*` in their intent-filter but NOT the
+        // narrow `application/x-mpegURL`, so using `video/*` maximises the
+        // chance resolveActivity() actually finds a handler.
+        String l = url == null ? "" : url.toLowerCase();
         if (l.endsWith(".mp4")) return "video/mp4";
         if (l.endsWith(".mkv")) return "video/x-matroska";
         if (l.endsWith(".webm")) return "video/webm";
-        if (l.endsWith(".avi")) return "video/x-msvideo";
-        if (l.endsWith(".mov")) return "video/quicktime";
+        // Everything else (m3u8, ts, mpd, avi, mov, unknown…) falls through
+        // to the broadest wildcard so VLC / VidoPlay / MX / Just Player all
+        // match. Receiving apps infer the concrete container from the URL.
         return "video/*";
     }
 

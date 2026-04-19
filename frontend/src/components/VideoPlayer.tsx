@@ -107,6 +107,7 @@ const VideoPlayer = ({
         const ok = tryLaunchExternalFromBrowser(src, {
           package: externalApp.androidPackage,
           title: title ?? "",
+          userAgent: getUserAgent(),
         });
         if (!ok) {
           toast.message(`Tap "Open in ${externalApp.label}" to launch`);
