@@ -110,6 +110,53 @@ user_problem_statement: |
     2. Live TV streaming does not play in the web browser (though Movies
        do). Works inside native app, broken on browser.
 
+backend:
+  - task: "Local IPTV proxy endpoint implementation"
+    implemented: true
+    working: true
+    file: "routes/iptv_proxy.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Added local IPTV proxy endpoint to FastAPI backend that mirrors 
+            the Supabase edge function. Implemented at /app/backend/routes/iptv_proxy.py
+            and registered in server.py. Exposes GET/POST/OPTIONS /api/iptv-proxy
+            endpoints with URL validation, private host blocking, HLS manifest
+            rewriting, and User-Agent forwarding. Needs comprehensive testing
+            of all endpoint behaviors including error cases, CORS, and stream
+            proxying functionality.
+        - working: true
+          agent: "testing"
+          comment: |
+            ✅ COMPREHENSIVE TESTING COMPLETED - ALL 11 TESTS PASSED
+            
+            Tested all scenarios from review request against preview URL:
+            https://a13556e0-52e1-47d5-8a80-6dbde9017493.preview.emergentagent.com
+            
+            ✅ URL Validation:
+            - Missing URL parameter → 400 "Missing 'url' query parameter"
+            - Invalid URL → 400 "Invalid or blocked URL"
+            - Private hosts (127.0.0.1, 192.168.1.1, localhost) → 400 blocked
+            - Non-HTTP schemes (file://, ftp://) → 400 blocked
+            
+            ✅ Proxy Functionality:
+            - Valid URL passthrough → 200, x-proxy-kind: passthrough
+            - M3U8 rewriting → 200, x-proxy-kind: m3u8, URLs rewritten correctly
+            - POST JSON → 200, x-proxy-kind: json-passthrough
+            - POST text with custom UA → 200, User-Agent forwarded correctly
+            - Binary stream → 200, x-proxy-kind: passthrough, 4096 bytes preserved
+            - Fake M3U8 (binary) → 200, x-proxy-kind: passthrough (not rewritten)
+            
+            ✅ CORS:
+            - OPTIONS → 204, Access-Control-Allow-Origin: *, proper methods
+            
+            All endpoint behaviors match specification exactly. Implementation
+            is production-ready and working correctly.
+
 frontend:
   - task: "External player launch (browser, Android+iOS+desktop)"
     implemented: true
@@ -190,6 +237,7 @@ metadata:
 
 test_plan:
   current_focus:
+    - "Local IPTV proxy endpoint implementation"
     - "External player launch (browser, Android+iOS+desktop)"
     - "Live TV streaming on browser (Supabase iptv-proxy + HLS fallback)"
   stuck_tasks: []
@@ -212,3 +260,25 @@ agent_communication:
         c) Inside the built APK, when VidoPlay is the chosen external
            app but not installed, you should see a toast with an
            "Install" action that opens the Play Store.
+  - agent: "testing"
+    message: |
+      Starting comprehensive testing of the new local IPTV proxy endpoint
+      at /api/iptv-proxy. Will test all GET/POST/OPTIONS endpoints with
+      various URL validation scenarios, private host blocking, HLS manifest
+      rewriting, User-Agent forwarding, CORS functionality, and stream
+      proxying as specified in the review request.
+  - agent: "testing"
+    message: |
+      🎉 IPTV PROXY TESTING COMPLETE - ALL TESTS PASSED (11/11)
+      
+      Comprehensive testing completed for the local IPTV proxy endpoint.
+      All behaviors specified in the review request are working correctly:
+      
+      ✅ URL validation and security (private host blocking, scheme validation)
+      ✅ Proxy functionality (passthrough, M3U8 rewriting, binary streams)
+      ✅ User-Agent forwarding working correctly
+      ✅ CORS preflight handling working
+      ✅ All response headers (x-proxy-kind) set correctly
+      
+      The implementation is production-ready and matches the Supabase edge
+      function behavior exactly. No issues found during testing.

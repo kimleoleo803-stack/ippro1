@@ -2,8 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CapacitorHttp } from "@capacitor/core";
 import { isNativeApp } from "@/native/nativePlayer";
 import { getUserAgent } from "@/lib/userAgent";
-
-const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/iptv-proxy`;
+import { proxyEndpoint, proxyMode } from "@/lib/proxyEndpoint";
 
 /**
  * Calls Xtream-style backends.
@@ -13,8 +12,10 @@ const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/iptv-pr
  *     and sends a custom User-Agent (IPTV Smarters, VLC, etc.), exactly
  *     like a standalone IPTV app would.
  *
- *   • On the web: falls back to the Supabase `iptv-proxy` edge function,
- *     because browsers won't let us override User-Agent or bypass CORS.
+ *   • On the web: routes through a proxy that can override the User-Agent
+ *     and bypass CORS. When `VITE_SUPABASE_URL` is configured we use the
+ *     Supabase `iptv-proxy` edge function; otherwise we fall through to
+ *     the local FastAPI proxy at `${REACT_APP_BACKEND_URL}/api/iptv-proxy`.
  */
 export const proxyFetch = async <T = unknown>(
   url: string,
@@ -48,15 +49,22 @@ export const proxyFetch = async <T = unknown>(
     return res.data as T;
   }
 
-  // ---- Web: go through Supabase edge function ----
-  const { data: sess } = await supabase.auth.getSession();
+  // ---- Web: go through the configured proxy (Supabase OR local backend) ----
+  const endpoint = proxyEndpoint();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    Authorization: `Bearer ${sess.session?.access_token ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
   };
 
-  const res = await fetch(FUNCTIONS_URL, {
+  // Only attach Supabase auth headers when we're actually hitting Supabase
+  // — the local FastAPI proxy doesn't expect (or understand) them.
+  if (proxyMode() === "supabase") {
+    const { data: sess } = await supabase.auth.getSession();
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (anonKey) headers["apikey"] = anonKey;
+    headers["Authorization"] = `Bearer ${sess.session?.access_token ?? anonKey ?? ""}`;
+  }
+
+  const res = await fetch(endpoint, {
     method: "POST",
     headers,
     body: JSON.stringify({ url, responseType, ua: getUserAgent() }),

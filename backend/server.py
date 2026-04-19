@@ -19,6 +19,7 @@ from routes.auth import router as auth_router, set_db as set_auth_db
 from routes.admin_users import router as admin_router
 from routes.subscription import router as subscription_router
 from routes.public import router as public_router
+from routes.iptv_proxy import router as iptv_proxy_router
 from core.auth import hash_password, verify_password
 
 # MongoDB connection
@@ -69,6 +70,7 @@ app.include_router(admin_router)
 app.include_router(subscription_router)
 app.include_router(public_router)
 app.include_router(device_router)
+app.include_router(iptv_proxy_router)
 
 app.add_middleware(
     CORSMiddleware,
