@@ -1,0 +1,4 @@
+project_id = "gbdolxoafnlximfsnlfm"
+
+[functions.iptv-proxy]
+verify_jwt = false
