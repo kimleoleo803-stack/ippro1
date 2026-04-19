@@ -155,3 +155,14 @@ export const apiGetSettings = () =>
 
 export const apiUpdateSettings = (body: Partial<Settings>) =>
   request<Settings>("PUT", "/api/admin/settings", body, true);
+
+// ---- Public (no auth) ----
+export type PublicSharedXtream = {
+  server: string;
+  username: string;
+  password: string;
+  configured: boolean;
+};
+
+export const apiPublicSharedXtream = () =>
+  request<PublicSharedXtream>("GET", "/api/public/shared-xtream");

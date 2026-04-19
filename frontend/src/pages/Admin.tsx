@@ -118,19 +118,19 @@ const Admin = () => {
 
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 md:px-10 pt-6">
+        <header className="flex flex-wrap items-center justify-between px-4 sm:px-6 md:px-10 pt-6 gap-3">
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-xl glass flex items-center justify-center"
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl glass flex items-center justify-center"
               style={{ border: "1px solid hsla(40, 80%, 55%, 0.4)" }}
             >
               <Tv className="w-5 h-5 text-primary gold-glow" />
             </div>
             <div>
-              <h1 className="font-display text-xl md:text-2xl tracking-[0.3em] gold-text">
+              <h1 className="font-display text-lg sm:text-xl md:text-2xl tracking-[0.2em] sm:tracking-[0.3em] gold-text">
                 NADIBOX ADMIN
               </h1>
-              <p className="text-muted-foreground text-[10px] tracking-[0.3em] uppercase">
+              <p className="text-muted-foreground text-[9px] sm:text-[10px] tracking-[0.3em] uppercase">
                 Subscriber Control Panel
               </p>
             </div>
@@ -139,7 +139,7 @@ const Admin = () => {
             <button
               onClick={refreshAll}
               data-testid="admin-refresh-btn"
-              className="w-11 h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
               title="Refresh"
             >
               <RefreshCcw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
@@ -147,9 +147,9 @@ const Admin = () => {
             <button
               onClick={handleLogout}
               data-testid="admin-logout-btn"
-              className="flex items-center gap-2 px-4 py-2 rounded-full glass text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors text-sm"
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full glass text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors text-xs sm:text-sm"
             >
-              <LogOut className="w-4 h-4" /> Logout
+              <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </header>
@@ -165,7 +165,7 @@ const Admin = () => {
           </motion.div>
         )}
 
-        <main className="flex-1 px-4 md:px-10 py-8 space-y-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 px-3 sm:px-4 md:px-10 py-6 sm:py-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
           {/* Settings */}
           <SettingsPanel
             settings={settings}

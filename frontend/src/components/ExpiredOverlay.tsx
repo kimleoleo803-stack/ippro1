@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { MessageCircle, Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 /**
  * Full-screen blocker shown when a subscriber's plan has expired.
@@ -13,10 +14,11 @@ const ExpiredOverlay = ({
   whatsappNumber: string;
   onLogout: () => void;
 }) => {
+  const { t } = useTranslation();
   const cleanNumber = (whatsappNumber || "").replace(/[^\d+]/g, "");
   const waHref = cleanNumber
     ? `https://wa.me/${cleanNumber.replace(/^\+/, "")}?text=${encodeURIComponent(
-        `Hi, my NADIBOX subscription (${username}) has expired. I'd like to renew.`,
+        t("expired.whatsappPrefill", { username }),
       )}`
     : "#";
 
@@ -35,26 +37,26 @@ const ExpiredOverlay = ({
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="glass-card rounded-3xl p-8 md:p-10 w-full max-w-lg text-center"
+        className="glass-card rounded-3xl p-6 sm:p-10 w-full max-w-lg text-center"
       >
         <div
-          className="w-20 h-20 mx-auto rounded-2xl glass flex items-center justify-center mb-5"
+          className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-2xl glass flex items-center justify-center mb-5"
           style={{
             border: "1px solid hsla(0, 70%, 55%, 0.4)",
             boxShadow: "0 0 40px hsla(0, 70%, 55%, 0.25)",
           }}
         >
-          <Lock className="w-10 h-10 text-destructive" strokeWidth={1.4} />
+          <Lock className="w-8 h-8 sm:w-10 sm:h-10 text-destructive" strokeWidth={1.4} />
         </div>
-        <h2 className="font-display text-2xl md:text-3xl tracking-[0.25em] gold-text mb-3">
-          SUBSCRIPTION EXPIRED
+        <h2 className="font-display text-xl sm:text-2xl md:text-3xl tracking-[0.2em] sm:tracking-[0.25em] gold-text mb-3">
+          {t("expired.title")}
         </h2>
         <p className="text-foreground/80 text-sm md:text-base mb-1">
-          Hi <span className="text-primary font-medium">{username}</span>,
+          {t("expired.hi")}{" "}
+          <span className="text-primary font-medium">{username}</span>,
         </p>
         <p className="text-muted-foreground text-sm md:text-base mb-6 leading-relaxed">
-          Your NADIBOX subscription has ended. To continue watching, please contact
-          us on WhatsApp to renew.
+          {t("expired.message")}
         </p>
 
         <a
@@ -62,16 +64,14 @@ const ExpiredOverlay = ({
           target="_blank"
           rel="noopener noreferrer"
           data-testid="expired-whatsapp-btn"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe57] text-white font-medium text-sm transition-colors"
+          className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 rounded-xl bg-[#25D366] hover:bg-[#1ebe57] text-white font-medium text-sm transition-colors"
         >
           <MessageCircle className="w-5 h-5" />
-          Contact on WhatsApp
+          {t("expired.contactWhatsapp")}
         </a>
 
         {whatsappNumber && (
-          <p className="text-muted-foreground text-xs mt-4">
-            {whatsappNumber}
-          </p>
+          <p className="text-muted-foreground text-xs mt-4">{whatsappNumber}</p>
         )}
 
         <button
@@ -79,7 +79,7 @@ const ExpiredOverlay = ({
           data-testid="expired-logout-btn"
           className="block mx-auto mt-6 text-muted-foreground hover:text-foreground text-xs tracking-[0.3em] uppercase transition-colors"
         >
-          Sign Out
+          {t("expired.signOut")}
         </button>
       </motion.div>
     </motion.div>

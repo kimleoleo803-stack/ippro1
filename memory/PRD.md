@@ -64,3 +64,31 @@
 - Email notifications when subscription is about to expire (7d, 3d, 1d)
 - Proper logout endpoint (currently stateless — token still technically valid until JWT exp)
 - Swap TV icon for real NADIBOX logo asset when user provides one
+
+## Session 3 (2026-04-19) — Guest "Advanced" toggle + Responsive + i18n (7 languages)
+
+**Backend**
+- New `routes/public.py` → `GET /api/public/shared-xtream` (unauthenticated) returns the admin-configured shared Xtream credentials so the Guest "Add Playlist" dialog can offer a one-click "Use shared server" option. Marked `configured: true/false` flag.
+
+**Frontend — Shared/Own toggle for Guests**
+- Reworked `components/AddServerDialog.tsx`:
+  - New "ADVANCED" radio group inside the Xtream tab: **Shared** (default) | **Own server**.
+  - Shared: auto-fetches `/api/public/shared-xtream`, fills serverUrl/username/password, renders a read-only summary card "Auto-filled from Global Settings". Connect button disabled if admin hasn't configured the shared creds yet.
+  - Own server: three manual inputs just like before.
+  - Responsive — bottom sheet on mobile (`rounded-t-3xl sm:rounded-3xl items-end sm:items-center`), 90vh max height with scroll.
+
+**Frontend — Responsive across all device classes**
+- All pages updated with mobile-first breakpoints (`sm:` / `md:` / `lg:`): padding, font sizes, icon sizes, card widths, header layouts. CategoryCard now uses aspect ratios + flex-wrap instead of fixed pixel sizes so it scales from 390px mobile → 1920px TV.
+- Added `rtl:rotate-180` on the back arrow in Login and replaced `left`/`right` / `ml`/`mr` utilities with logical `start`/`end` / `ms`/`me` so layouts mirror correctly in RTL.
+- `min-w-0` on all flex `input` rows to fix mobile overflow bugs.
+
+**Frontend — i18n (7 languages) with react-i18next**
+- Added `i18next`, `react-i18next`, `i18next-browser-languagedetector`.
+- New `src/i18n.ts` with full translation resources for: **English 🇬🇧, Arabic 🇸🇦 (RTL), French 🇫🇷, Spanish 🇪🇸, Russian 🇷🇺, Korean 🇰🇷, Filipino 🇵🇭**.
+- Covered surfaces: Welcome, Login, Splash (tagline + premium tag), Index (header / subscription strip / category cards / info bar / footer), ExpiredOverlay (including WhatsApp prefill message).
+- Language persistence via `localStorage.nadibox_lang`; `i18n.on("languageChanged")` updates `<html dir>` and `<html lang>` so Arabic flips the layout automatically.
+- Reusable `components/LanguageSelect.tsx` — glass pill button (🇬🇧 English ▾), dropdown with flag + localized language name + check mark on the active one. Mounted on Welcome (top-right), Login (top-end), and Home header.
+
+**Verified end-to-end (Playwright)**
+- Welcome desktop EN, Welcome desktop AR (dir=rtl, text mirrored), Welcome mobile 390px, Home guest mobile, Add-server mobile — both Shared (auto-filled from admin's real creds) and Own (manual) variants, Home guest TV 1920×1080.
+

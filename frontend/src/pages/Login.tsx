@@ -2,14 +2,13 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Tv, User, KeyRound, Loader2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import LanguageSelect from "@/components/LanguageSelect";
 
-/**
- * Subscriber Login — username + password for users created by the admin.
- * Admin logs in from the same form and is routed to /admin.
- */
 const Login = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -35,7 +34,7 @@ const Login = () => {
   return (
     <div
       data-testid="login-page"
-      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4"
+      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4 py-10"
     >
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -47,31 +46,37 @@ const Login = () => {
         type="button"
         onClick={() => navigate("/welcome")}
         data-testid="login-back-btn"
-        className="absolute z-20 top-6 left-6 w-11 h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+        className="absolute z-20 top-4 sm:top-6 start-4 sm:start-6 w-10 h-10 sm:w-11 sm:h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
       >
-        <ArrowLeft className="w-5 h-5" />
+        <ArrowLeft className="w-5 h-5 rtl:rotate-180" />
       </button>
+
+      <div className="absolute z-20 top-4 sm:top-6 end-4 sm:end-6">
+        <LanguageSelect align="right" />
+      </div>
 
       <motion.form
         onSubmit={handleSubmit}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative z-10 glass-card rounded-3xl p-8 w-full max-w-md"
+        className="relative z-10 glass-card rounded-3xl p-6 sm:p-8 w-full max-w-md"
       >
         <div className="flex flex-col items-center mb-6">
           <div
-            className="w-16 h-16 rounded-2xl glass flex items-center justify-center mb-3"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl glass flex items-center justify-center mb-3"
             style={{
               border: "1px solid hsla(40, 80%, 55%, 0.4)",
               boxShadow: "0 0 40px hsla(40, 80%, 55%, 0.3)",
             }}
           >
-            <Tv className="w-8 h-8 text-primary gold-glow" strokeWidth={1.4} />
+            <Tv className="w-7 h-7 sm:w-8 sm:h-8 text-primary gold-glow" strokeWidth={1.4} />
           </div>
-          <h1 className="font-display text-2xl tracking-[0.3em] gold-text">NADIBOX</h1>
-          <p className="text-muted-foreground text-xs tracking-[0.25em] uppercase mt-2">
-            Subscriber Sign-In
+          <h1 className="font-display text-xl sm:text-2xl tracking-[0.3em] gold-text">
+            NADIBOX
+          </h1>
+          <p className="text-muted-foreground text-[10px] sm:text-xs tracking-[0.25em] uppercase mt-2 text-center">
+            {t("login.subtitle")}
           </p>
         </div>
 
@@ -81,10 +86,10 @@ const Login = () => {
             <input
               data-testid="login-username-input"
               type="text"
-              placeholder="Username"
+              placeholder={t("login.username")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+              className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
               autoComplete="username"
               autoFocus
             />
@@ -94,10 +99,10 @@ const Login = () => {
             <input
               data-testid="login-password-input"
               type="password"
-              placeholder="Password"
+              placeholder={t("login.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+              className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
               autoComplete="current-password"
             />
           </div>
@@ -119,11 +124,11 @@ const Login = () => {
           className="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-primary/80 to-primary/60 text-primary-foreground font-medium text-sm hover:from-primary hover:to-primary/80 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
         >
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-          {submitting ? "Signing in..." : "Sign In"}
+          {submitting ? t("login.submitting") : t("login.submit")}
         </button>
 
-        <p className="mt-5 text-center text-muted-foreground text-[11px] tracking-wide">
-          No account? Contact your NADIBOX administrator to get credentials.
+        <p className="mt-5 text-center text-muted-foreground text-[10px] sm:text-[11px] tracking-wide">
+          {t("login.contactAdmin")}
         </p>
       </motion.form>
     </div>

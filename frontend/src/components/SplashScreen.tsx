@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Tv } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const SPLASH_DURATION_MS = 3000;
 const SESSION_KEY = "nadibox_splash_shown";
@@ -12,6 +13,7 @@ interface SplashScreenProps {
 const SplashScreen = ({ onFinish }: SplashScreenProps) => {
   const [visible, setVisible] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     // Attempt sound auto-play on first load. Modern browsers may block
@@ -174,7 +176,7 @@ const SplashScreen = ({ onFinish }: SplashScreenProps) => {
               transition={{ duration: 0.9, delay: 1.0 }}
               className="text-muted-foreground text-xs md:text-sm tracking-[0.5em] uppercase"
             >
-              Tune In to the Universe
+              {t("splash.tagline")}
             </motion.p>
 
             {/* Loading shimmer bar */}
@@ -210,7 +212,7 @@ const SplashScreen = ({ onFinish }: SplashScreenProps) => {
             transition={{ delay: 1.4, duration: 0.6 }}
             className="absolute bottom-6 left-0 right-0 text-center text-muted-foreground/70 text-[10px] tracking-[0.4em] uppercase"
           >
-            Premium IPTV Experience
+            {t("splash.premiumTag")}
           </motion.div>
         </motion.div>
       )}
