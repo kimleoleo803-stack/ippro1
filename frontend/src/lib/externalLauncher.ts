@@ -1,34 +1,37 @@
 /**
  * Browser-side helpers for launching an external video player.
  *
- * Strategy:
- *  - Android browsers: open a proper intent:// URL with
- *      action=android.intent.action.VIEW
- *      type=video/*            (VLC's own docs recommend this — NOT the
- *                               narrow `application/x-mpegURL`; many
- *                               players' intent filters reject the
- *                               narrow MIME and the intent falls through.)
- *      package=<user's chosen app>
- *    Fired via `window.location.href` **on a user gesture** (tap).
- *    **We intentionally do NOT set S.browser_fallback_url**: when the
- *    chosen package isn't installed, Chrome auto-redirects to the
- *    Play Store listing for that package (exactly the UX we want).
- *    Setting the fallback to the raw stream URL causes Chrome to try
- *    to play the m3u8 itself, which IPTV servers reject with
- *    ERR_UNEXPECTED_PROXY_AUTH (407).
+ * This module targets three environments:
+ *   • Android Chrome / Samsung Internet / Firefox / any Android browser
+ *   • Median.co (GoNative) & other WebView-wrapper APKs that reuse the
+ *     same Android System WebView — these forward `intent://` URLs to
+ *     the OS via a regex-based "internal vs external" rule.
+ *   • iOS Safari
+ *   • Desktop browsers (fallback: render a visible `<a href="vlc://…">`).
  *
- *  - iOS Safari: vlc-x-callback:// (VLC) — tapped on a user gesture so
- *    Safari prompts "Open this page in VLC?".
+ * Key design decisions (earned the hard way):
  *
- *  - Desktop browsers: no auto-navigation. The UI shows a visible
- *    `<a href="vlc://…">` button, a safe user-gesture navigation.
+ *   1. MIME on the Android intent is `video/*` — VLC's own docs
+ *      recommend this, and every major player (VLC, VidoPlay, MX, Just
+ *      Player, YTV Player) declares `video/*` in its intent-filter.
+ *      Using the narrower `application/x-mpegURL` caused
+ *      `resolveActivity()` to return null on live streams.
+ *
+ *   2. **No `S.browser_fallback_url`.** When the chosen package isn't
+ *      installed, Chrome / the WebView will auto-redirect to the
+ *      Play Store listing for that package. Setting the fallback to
+ *      the raw stream URL made Chrome try to play the m3u8 itself,
+ *      which IPTV servers reject with a 407 Proxy Auth Required
+ *      (`ERR_UNEXPECTED_PROXY_AUTH` in Chrome/WebView).
+ *
+ *   3. **Visibility-based "not installed" detection.** After firing the
+ *      intent, if the document doesn't go `hidden` within ~1.6s, the
+ *      intent didn't launch any app. We then call
+ *      `opts.onNotInstalled(pkg)` so the UI can show an Install action.
  */
 
-// VLC's Android intent documentation (https://wiki.videolan.org/Android_Player_Intents/)
-// explicitly recommends `video/*` for video of any kind. Most player apps
-// (VLC, VidoPlay, MX, Just Player, YTV Player) declare `video/*` in their
-// intent-filter but a subset do NOT declare `application/x-mpegURL`, so we
-// use the broadest MIME that still resolves correctly.
+// VLC's Android intent documentation explicitly recommends `video/*`:
+// https://wiki.videolan.org/Android_Player_Intents/
 const VIDEO_WILDCARD = "video/*";
 
 const MIME_BY_EXT: Array<[RegExp, string]> = [
@@ -84,9 +87,7 @@ export const buildAndroidIntentUrl = (
   if (opts.userAgent) {
     parts.push(`S.User-Agent=${encodeURIComponent(opts.userAgent)}`);
   }
-  // NO S.browser_fallback_url — see module docstring above. If the chosen
-  // app isn't installed, Chrome will auto-redirect to its Play Store
-  // listing, which is exactly what we want.
+  // NO S.browser_fallback_url — see module docstring above.
   parts.push("end");
 
   return `intent://${rest}#Intent;${parts.join(";")}`;
@@ -103,6 +104,14 @@ export const buildVlcIosUrl = (streamUrl: string) =>
 export const buildInfuseUrl = (streamUrl: string) =>
   `infuse://x-callback-url/play?url=${encodeURIComponent(streamUrl)}`;
 
+/** Android Play Store deep link — works inside WebViews, Chrome, etc. */
+export const buildMarketUrl = (pkg: string) =>
+  `market://details?id=${encodeURIComponent(pkg)}`;
+
+/** Web fallback for `market://` (e.g. Play Store not installed). */
+export const buildPlayStoreWebUrl = (pkg: string) =>
+  `https://play.google.com/store/apps/details?id=${encodeURIComponent(pkg)}`;
+
 const isAndroidBrowser = (): boolean => {
   if (typeof navigator === "undefined") return false;
   return /Android/i.test(navigator.userAgent);
@@ -114,23 +123,67 @@ const isIOSBrowser = (): boolean => {
 };
 
 /**
+ * True when we're running inside a Median.co (GoNative) WebView wrapper.
+ * These reuse the Android System WebView and append `median` to the UA.
+ * Handy when we want to prefer `market://` fallbacks over `https://play.…`
+ * because the Median URL-classification rules send `market://` externally.
+ */
+export const isMedianWebView = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  return /\bmedian\b/i.test(navigator.userAgent);
+};
+
+export interface LaunchOptions extends IntentOptions {
+  /**
+   * Called if we detect the intent didn't launch an app (the document
+   * never went `hidden` within the grace window).  Receives the package
+   * the caller forced (if any) so the UI can offer an Install action.
+   */
+  onNotInstalled?: (pkg: string | undefined) => void;
+}
+
+/**
  * Fire the external-player launch. MUST be called from a user-gesture
  * (onClick handler) — otherwise Android/iOS will block the scheme.
  *
- * Returns `true` when a launch was actually attempted (caller shouldn't
- * need to do anything else). Returns `false` on desktop-like browsers
- * where a visible `<a>` button is the only safe option.
+ * Returns `true` when a launch was attempted (caller shouldn't need to
+ * do anything else immediately). Returns `false` on desktop-like
+ * browsers where a visible `<a>` button is the only safe option.
  */
 export const tryLaunchExternalFromBrowser = (
   streamUrl: string,
-  opts: IntentOptions = {}
+  opts: LaunchOptions = {}
 ): boolean => {
   if (isAndroidBrowser()) {
     try {
       const intentUrl = buildAndroidIntentUrl(streamUrl, opts);
-      // `location.href` on a user gesture is the official Chrome path.
-      // If the target package isn't installed, Chrome redirects to the
-      // Play Store listing for that package.
+
+      // --- Visibility-based "did the intent actually launch?" detection ---
+      let wentHidden = false;
+      const onVis = () => {
+        if (typeof document !== "undefined" && document.hidden) {
+          wentHidden = true;
+          document.removeEventListener("visibilitychange", onVis);
+        }
+      };
+      if (typeof document !== "undefined") {
+        document.addEventListener("visibilitychange", onVis);
+      }
+
+      // If the app doesn't launch within ~1.6s the page will still be
+      // visible → treat as "not installed" and fire the callback so the
+      // UI can show an "Install <App>" toast action.
+      window.setTimeout(() => {
+        if (typeof document !== "undefined") {
+          document.removeEventListener("visibilitychange", onVis);
+          if (!wentHidden && !document.hidden && opts.onNotInstalled) {
+            opts.onNotInstalled(opts.package);
+          }
+        }
+      }, 1600);
+
+      // Navigate to the intent URL on the user gesture. Chrome / the
+      // Median WebView hand this off to the OS.
       window.location.href = intentUrl;
       return true;
     } catch (e) {
@@ -141,7 +194,6 @@ export const tryLaunchExternalFromBrowser = (
 
   if (isIOSBrowser()) {
     try {
-      // Prefer VLC's x-callback URL; Safari will ask to open in VLC.
       window.location.href = buildVlcIosUrl(streamUrl);
       return true;
     } catch (e) {
@@ -150,6 +202,31 @@ export const tryLaunchExternalFromBrowser = (
     }
   }
 
-  // Desktop: do nothing automatically — UI shows a visible button.
+  // Desktop: never auto-navigate — UI shows a visible button.
   return false;
+};
+
+/**
+ * Open the Play Store listing for the given package. Tries `market://`
+ * first (instant open in the Play Store app), falls back to the web URL
+ * which every Android browser/WebView can handle.
+ */
+export const openPlayStore = (pkg: string): void => {
+  try {
+    const marketUrl = buildMarketUrl(pkg);
+    // Small delay so the toast UI finishes rendering before we navigate.
+    window.setTimeout(() => {
+      window.location.href = marketUrl;
+      // Fallback: if `market://` isn't handled (rare on non-GMS phones),
+      // swap to the web URL after a short grace.
+      window.setTimeout(() => {
+        if (typeof document !== "undefined" && !document.hidden) {
+          window.location.href = buildPlayStoreWebUrl(pkg);
+        }
+      }, 1200);
+    }, 50);
+  } catch (e) {
+    console.warn("[externalLauncher] openPlayStore failed", e);
+    window.location.href = buildPlayStoreWebUrl(pkg);
+  }
 };

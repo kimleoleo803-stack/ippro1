@@ -30,6 +30,7 @@ import {
   tryLaunchExternalFromBrowser,
   buildVlcUrl,
   buildVlcIosUrl,
+  openPlayStore,
 } from "@/lib/externalLauncher";
 
 type ViewMode = "list" | "grid";
@@ -110,6 +111,21 @@ const LiveTV = () => {
             package: externalApp.androidPackage,
             title: ch.name,
             userAgent: getUserAgent(),
+            onNotInstalled: (pkg) => {
+              // No app responded to the intent → almost certainly not
+              // installed. Let the user install it in one tap.
+              if (!pkg) {
+                toast.error(`No ${externalApp.label} app handled the stream`);
+                return;
+              }
+              toast.error(`${externalApp.label} is not installed`, {
+                action: {
+                  label: "Install",
+                  onClick: () => openPlayStore(pkg),
+                },
+                duration: 10000,
+              });
+            },
           });
           if (ok) {
             toast.message(t("liveTV.sentToApp", { app: externalApp.label }));

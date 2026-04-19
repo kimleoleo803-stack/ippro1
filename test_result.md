@@ -272,7 +272,7 @@ backend:
   - task: "External launcher MIME + fallback fix (ERR_UNEXPECTED_PROXY_AUTH)"
     implemented: true
     working: "NA"
-    file: "frontend/src/lib/externalLauncher.ts, android/.../NativePlayerPlugin.java"
+    file: "frontend/src/lib/externalLauncher.ts, android/.../NativePlayerPlugin.java, frontend/src/pages/LiveTV.tsx, frontend/src/components/VideoPlayer.tsx"
     stuck_count: 0
     priority: "high"
     needs_retesting: true
@@ -288,7 +288,7 @@ backend:
                  that narrow MIME, so the intent fell through.
               2. `S.browser_fallback_url` was set to the raw stream URL
                  — so on a fall-through, Chrome tried to play the m3u8
-                 itself, IPTV server returned 407, Chrome shows
+                 itself, IPTV server returned 407, Chrome showed
                  ERR_UNEXPECTED_PROXY_AUTH.
             Fixes:
               * Switched MIME to `video/*` for ALL video intents (VLC's
@@ -296,18 +296,39 @@ backend:
                 `video/*` in its intent filter). Applied in both the
                 browser intent:// URL and the native Android plugin's
                 setDataAndType(), so `resolveActivity()` now succeeds.
-              * REMOVED `S.browser_fallback_url` entirely. When the chosen
-                package isn't installed, Chrome auto-redirects to its
-                Play Store listing — the intended "install prompt" UX —
-                instead of trying to play the raw stream.
-              * User-Agent now flows from the Account → Player Identity
-                preference into the intent extra `S.User-Agent`, so VLC
-                and MX Player send IPTVSmarters UA upstream.
-            Reproduced failing intent URL from video:
-              intent://Streamscreen4kplayer.xyz/live/.../397719.m3u8
-                #Intent;scheme=http;action=android.intent.action.VIEW;
-                 type=video/*;package=com.vidoplay.player;
-                 S.title=...;S.User-Agent=...;end
+              * REMOVED `S.browser_fallback_url` entirely. Chrome / the
+                Median WebView now auto-redirect to the Play Store when
+                the chosen app isn't installed instead of trying to play
+                the raw stream.
+              * User-Agent now flows from Account → Player Identity into
+                the intent extra `S.User-Agent`, so VLC / MX Player hit
+                the upstream with IPTVSmarters UA.
+              * Added visibility-based "intent didn't launch" detection:
+                if document doesn't go hidden within 1.6s after firing,
+                we fire `onNotInstalled(pkg)` so the UI shows a sonner
+                toast with a one-tap "Install" → market:// Play Store.
+              * Added `isMedianWebView()` + `openPlayStore()` helpers,
+                wired into LiveTV + VideoPlayer external paths.
+
+  - task: "Diagnose the APK (Median.co WebView, not Capacitor)"
+    implemented: true
+    working: true
+    file: "frontend/src/lib/externalLauncher.ts"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: |
+            User's APK is a Median.co (GoNative) WebView wrapper, not a
+            Capacitor build — the Capacitor `NativePlayerPlugin.java` is
+            NOT present in the APK. The APK's `initialUrl` points at our
+            preview URL, so every frontend fix applies to the APK
+            immediately (no rebuild). Median's `regexInternalExternal`
+            default rule `^(?!https?://).*` routes `intent://`, `vlc://`,
+            `market://` etc. to the OS, so all our launcher schemes are
+            supported.
 
             app if VidoPlay isn't installed. Instead it resolves with
             { launched:false, reason:"not-installed", package } so the UI

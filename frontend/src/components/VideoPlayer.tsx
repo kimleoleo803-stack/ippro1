@@ -13,6 +13,7 @@ import {
   tryLaunchExternalFromBrowser,
   buildVlcUrl,
   buildVlcIosUrl,
+  openPlayStore,
 } from "@/lib/externalLauncher";
 
 interface Props {
@@ -101,13 +102,26 @@ const VideoPlayer = ({
           });
         }
       } else {
-        // Browser: fires on Android Chrome (intent://) and iOS Safari
-        // (vlc-x-callback://). Desktop returns false — user must click
-        // the visible `<a href="vlc://…">` button.
+        // Browser: fires on Android Chrome / Median WebView (intent://)
+        // and iOS Safari (vlc-x-callback://). Desktop returns false —
+        // user must click the visible `<a href="vlc://…">` button.
         const ok = tryLaunchExternalFromBrowser(src, {
           package: externalApp.androidPackage,
           title: title ?? "",
           userAgent: getUserAgent(),
+          onNotInstalled: (pkg) => {
+            if (!pkg) {
+              toast.error(`No ${externalApp.label} app handled the stream`);
+              return;
+            }
+            toast.error(`${externalApp.label} is not installed`, {
+              action: {
+                label: "Install",
+                onClick: () => openPlayStore(pkg),
+              },
+              duration: 10000,
+            });
+          },
         });
         if (!ok) {
           toast.message(`Tap "Open in ${externalApp.label}" to launch`);
