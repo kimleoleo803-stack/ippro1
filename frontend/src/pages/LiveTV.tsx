@@ -26,7 +26,11 @@ import { NativePlayer, isNativeApp } from "@/native/nativePlayer";
 import { getPlaybackMode } from "@/lib/playbackMode";
 import { getExternalApp } from "@/lib/externalApp";
 import { getUserAgent } from "@/lib/userAgent";
-import { tryLaunchExternalFromBrowser } from "@/lib/externalLauncher";
+import {
+  tryLaunchExternalFromBrowser,
+  buildVlcUrl,
+  buildVlcIosUrl,
+} from "@/lib/externalLauncher";
 
 type ViewMode = "list" | "grid";
 
@@ -77,16 +81,42 @@ const LiveTV = () => {
     if (mode === "external") {
       try {
         if (native) {
-          await NativePlayer.openExternal({
+          const res = await NativePlayer.openExternal({
             url: ch.streamUrl,
             title: ch.name,
             userAgent: getUserAgent(),
             package: externalApp.androidPackage,
           });
-          toast.success(t("liveTV.openingInApp", { channel: ch.name, app: externalApp.label }));
+
+          if (res?.launched) {
+            toast.success(
+              t("liveTV.openingInApp", { channel: ch.name, app: externalApp.label }),
+            );
+          } else if (res?.reason === "not-installed" && res.package) {
+            // Let the user install their chosen external app.
+            toast.error(`${externalApp.label} is not installed`, {
+              action: {
+                label: "Install",
+                onClick: () =>
+                  NativePlayer.openPlayStore({ package: res.package! }),
+              },
+              duration: 8000,
+            });
+          } else {
+            toast.error(t("liveTV.couldntOpen", { app: externalApp.label }));
+          }
         } else {
-          tryLaunchExternalFromBrowser(ch.streamUrl);
-          toast.message(t("liveTV.sentToApp", { app: externalApp.label }));
+          const ok = tryLaunchExternalFromBrowser(ch.streamUrl, {
+            package: externalApp.androidPackage,
+            title: ch.name,
+          });
+          if (ok) {
+            toast.message(t("liveTV.sentToApp", { app: externalApp.label }));
+          } else {
+            // Desktop / unsupported browser — user must click the visible
+            // "Open in <App>" button we render below.
+            toast.message(`Tap "Open in ${externalApp.label}" to launch`);
+          }
         }
       } catch (e: any) {
         toast.error(
@@ -100,6 +130,15 @@ const LiveTV = () => {
 
     // Internal mode → normal in-app player
     setSelectedChannel(ch);
+  };
+
+  // URL scheme to use for the visible "Open in <App>" fallback button
+  // when the browser can't auto-launch (desktop / iOS Safari).
+  const browserLaunchHref = (streamUrl: string): string | undefined => {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    if (/iPad|iPhone|iPod/.test(ua)) return buildVlcIosUrl(streamUrl);
+    if (/Android/i.test(ua)) return undefined; // handled via intent://
+    return buildVlcUrl(streamUrl);
   };
 
   if (!activeProfile) {
@@ -326,34 +365,54 @@ const LiveTV = () => {
           // Clicking a channel fires the external app; no in-app player.
           <div className="flex-1 flex flex-col gap-2 min-h-0">
             {selectedChannel && (
-              <div className="glass-card rounded-xl px-3 py-2 flex items-center gap-3">
-                <div className="w-9 h-7 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
-                  {selectedChannel.logoUrl ? (
-                    <img
-                      src={selectedChannel.logoUrl}
-                      alt=""
-                      className="w-full h-full object-contain"
-                    />
+              <div className="glass-card rounded-xl px-3 py-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-7 rounded bg-muted/30 flex items-center justify-center overflow-hidden">
+                    {selectedChannel.logoUrl ? (
+                      <img
+                        src={selectedChannel.logoUrl}
+                        alt=""
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <Play className="w-3 h-3 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-foreground text-xs font-medium truncate">
+                      {selectedChannel.name}
+                    </p>
+                    <p className="text-muted-foreground text-[10px] truncate">
+                      {nowPlaying?.title
+                        ? t("liveTV.nowPrefix", { title: nowPlaying.title })
+                        : selectedChannel.category}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Prominent "Open in <App>" button — works on Android
+                    via intent://, on iOS via vlc-x-callback://, and on
+                    desktop via vlc://<url>. */}
+                {(() => {
+                  const href = browserLaunchHref(selectedChannel.streamUrl);
+                  return href ? (
+                    <a
+                      href={href}
+                      className="inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium px-4 py-2 rounded-lg shadow-lg"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open in {externalApp.label}
+                    </a>
                   ) : (
-                    <Play className="w-3 h-3 text-muted-foreground" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-foreground text-xs font-medium truncate">
-                    {selectedChannel.name}
-                  </p>
-                  <p className="text-muted-foreground text-[10px] truncate">
-                    {nowPlaying?.title
-                      ? t("liveTV.nowPrefix", { title: nowPlaying.title })
-                      : selectedChannel.category}
-                  </p>
-                </div>
-                <button
-                  onClick={() => onChannelClick(selectedChannel)}
-                  className="text-[11px] text-primary flex items-center gap-1 glass px-3 py-1.5 rounded-lg"
-                >
-                  <ExternalLink className="w-3 h-3" /> {t("liveTV.reopen")}
-                </button>
+                    <button
+                      onClick={() => onChannelClick(selectedChannel)}
+                      className="inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-medium px-4 py-2 rounded-lg shadow-lg"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Open in {externalApp.label}
+                    </button>
+                  );
+                })()}
               </div>
             )}
 

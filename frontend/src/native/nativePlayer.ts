@@ -5,6 +5,15 @@ export interface InstalledPlayer {
   label: string;
 }
 
+export interface OpenExternalResult {
+  launched: boolean;
+  via?: string;
+  /** When launched=false: "not-installed" | "activity-not-found". */
+  reason?: "not-installed" | "activity-not-found";
+  /** When reason=not-installed, the package the caller forced. */
+  package?: string;
+}
+
 export interface NativePlayerPlugin {
   /** Launches the in-app fullscreen player (ExoPlayer / AVPlayer). */
   play(options: {
@@ -17,20 +26,33 @@ export interface NativePlayerPlugin {
 
   /**
    * Hands the stream URL off to an external video player.
-   * Tries YTV Player → MX Player Pro → MX Player → Just Player → VLC → chooser,
-   * unless you pass `package` to force a specific app.
+   *
+   * If you pass `package` and that app isn't installed, the native
+   * side resolves with `{ launched: false, reason: "not-installed",
+   * package }` — the UI can then prompt the user to install it.
+   *
+   * If no `package` is passed, the native side tries the preferred
+   * list (VidoPlay → VLC → MX Player → Just Player → YTV Player) and
+   * falls through to the system chooser + in-app ExoPlayer as a
+   * last resort.
    */
   openExternal(options: {
     url: string;
     title?: string;
     userAgent?: string;
     headers?: Record<string, string>;
-    /** Force a specific package, e.g. "org.videolan.vlc" */
+    /** Force a specific package, e.g. "org.videolan.vlc". */
     package?: string;
-  }): Promise<{ launched: boolean; via?: string }>;
+  }): Promise<OpenExternalResult>;
 
   /** Android: returns the list of apps that can handle m3u8 streams. */
   listInstalledPlayers(): Promise<{ players: InstalledPlayer[] }>;
+
+  /** Android: is a specific package installed? */
+  isInstalled(options: { package: string }): Promise<{ installed: boolean }>;
+
+  /** Android: open the Play Store listing for a package. */
+  openPlayStore(options: { package: string }): Promise<{ launched: boolean; via?: string }>;
 
   isAvailable(): Promise<{ available: boolean; engine: string }>;
 }

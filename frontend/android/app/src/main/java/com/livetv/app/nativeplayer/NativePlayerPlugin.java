@@ -1,5 +1,6 @@
 package com.livetv.app.nativeplayer;
 
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -93,7 +94,19 @@ public class NativePlayerPlugin extends Plugin {
     }
 
     // ─────────────────────────────────────────────────────────────
-    //  openExternal  — hand off to YTV / MX / VLC / chooser
+    //  openExternal  — hand off to VidoPlay / VLC / MX / chooser
+    //
+    //  Resolution order:
+    //   1. If the caller forced a specific `package`, use it.
+    //      If that package isn't installed, respond with
+    //      { launched: false, reason: "not-installed", package }
+    //      so the UI can offer "Install from Play Store".
+    //      (We no longer auto-fall-back to another app here — that
+    //       surprised users who had intentionally picked VidoPlay.)
+    //   2. Otherwise, try the preferred-package list in order.
+    //   3. Otherwise, show the system chooser.
+    //   4. Otherwise, fall back to in-app ExoPlayer so the user
+    //      always gets video, never a dead-end.
     // ─────────────────────────────────────────────────────────────
     @PluginMethod
     public void openExternal(PluginCall call) {
@@ -113,20 +126,37 @@ public class NativePlayerPlugin extends Plugin {
         Intent base = buildVideoIntent(url, mime, userAgent, title);
         PackageManager pm = getContext().getPackageManager();
 
-        // 1) If caller forced a specific package (e.g. "org.videolan.vlc") → use it.
-        if (forcePackage != null && !forcePackage.isEmpty()) {
+        // 1) Caller forced a specific package → try just that one.
+        if (forcePackage != null && !forcePackage.isEmpty()
+                && !"chooser".equalsIgnoreCase(forcePackage)) {
             Intent direct = new Intent(base);
             direct.setPackage(forcePackage);
-            if (direct.resolveActivity(pm) != null) {
+
+            // Not installed → let the UI offer the Play Store.
+            if (direct.resolveActivity(pm) == null) {
+                JSObject ret = new JSObject();
+                ret.put("launched", false);
+                ret.put("reason", "not-installed");
+                ret.put("package", forcePackage);
+                call.resolve(ret);
+                return;
+            }
+
+            try {
                 getContext().startActivity(direct);
                 resolveOk(call, "package:" + forcePackage);
                 return;
+            } catch (ActivityNotFoundException e) {
+                JSObject ret = new JSObject();
+                ret.put("launched", false);
+                ret.put("reason", "activity-not-found");
+                ret.put("package", forcePackage);
+                call.resolve(ret);
+                return;
             }
-            call.reject("Requested app '" + forcePackage + "' is not installed");
-            return;
         }
 
-        // 2) Try the preferred-package list: launch the first one installed.
+        // 2) No package forced → try the preferred list.
         for (String pkg : PREFERRED_PACKAGES) {
             Intent direct = new Intent(base);
             direct.setPackage(pkg);
@@ -141,7 +171,7 @@ public class NativePlayerPlugin extends Plugin {
             }
         }
 
-        // 3) Fall back to the system chooser ("Open with…")
+        // 3) System chooser ("Open with…")
         List<ResolveInfo> resolvers = pm.queryIntentActivities(base, 0);
         if (resolvers != null && !resolvers.isEmpty()) {
             Intent chooser = Intent.createChooser(base, "Open stream with…");
@@ -151,9 +181,55 @@ public class NativePlayerPlugin extends Plugin {
             return;
         }
 
-        // 4) Absolutely nothing installed → fall back to in-app ExoPlayer so
-        //    the user always gets video, never a dead-end.
+        // 4) Absolutely nothing installed → fall back to in-app ExoPlayer.
         play(call);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  openPlayStore  — let UI offer "Install <external app>"
+    // ─────────────────────────────────────────────────────────────
+    @PluginMethod
+    public void openPlayStore(PluginCall call) {
+        String pkg = call.getString("package");
+        if (pkg == null || pkg.isEmpty()) {
+            call.reject("'package' is required");
+            return;
+        }
+        try {
+            Intent market = new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("market://details?id=" + pkg));
+            market.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(market);
+            resolveOk(call, "market");
+        } catch (ActivityNotFoundException e) {
+            // No Play Store → open in browser.
+            Intent web = new Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://play.google.com/store/apps/details?id=" + pkg));
+            web.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(web);
+            resolveOk(call, "web");
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  isInstalled — UI can hide "Install" if the app is already here
+    // ─────────────────────────────────────────────────────────────
+    @PluginMethod
+    public void isInstalled(PluginCall call) {
+        String pkg = call.getString("package");
+        JSObject ret = new JSObject();
+        if (pkg == null || pkg.isEmpty()) {
+            ret.put("installed", false);
+            call.resolve(ret);
+            return;
+        }
+        try {
+            getContext().getPackageManager().getPackageInfo(pkg, 0);
+            ret.put("installed", true);
+        } catch (PackageManager.NameNotFoundException e) {
+            ret.put("installed", false);
+        }
+        call.resolve(ret);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -209,6 +285,9 @@ public class NativePlayerPlugin extends Plugin {
         if (l.endsWith(".ts") || l.contains(".ts?")) return "video/mp2t";
         if (l.endsWith(".mp4")) return "video/mp4";
         if (l.endsWith(".mkv")) return "video/x-matroska";
+        if (l.endsWith(".webm")) return "video/webm";
+        if (l.endsWith(".avi")) return "video/x-msvideo";
+        if (l.endsWith(".mov")) return "video/quicktime";
         return "video/*";
     }
 

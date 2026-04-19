@@ -59,7 +59,7 @@ export const proxyFetch = async <T = unknown>(
   const res = await fetch(FUNCTIONS_URL, {
     method: "POST",
     headers,
-    body: JSON.stringify({ url, responseType }),
+    body: JSON.stringify({ url, responseType, ua: getUserAgent() }),
   });
 
   if (!res.ok) {

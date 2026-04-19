@@ -9,7 +9,11 @@ import { NativePlayer, isNativeApp, nativePlatform } from "@/native/nativePlayer
 import { getUserAgent } from "@/lib/userAgent";
 import { getPlaybackMode } from "@/lib/playbackMode";
 import { getExternalApp } from "@/lib/externalApp";
-import { tryLaunchExternalFromBrowser, buildVlcUrl } from "@/lib/externalLauncher";
+import {
+  tryLaunchExternalFromBrowser,
+  buildVlcUrl,
+  buildVlcIosUrl,
+} from "@/lib/externalLauncher";
 
 interface Props {
   src: string;
@@ -80,18 +84,32 @@ const VideoPlayer = ({
     try {
       if (native) {
         // Android/iOS → real Intent / URL scheme, no page navigation.
-        await NativePlayer.openExternal({
+        const res = await NativePlayer.openExternal({
           url: src,
           title: title ?? "",
           userAgent: getUserAgent(),
           package: externalApp.androidPackage,
         });
+        if (!res?.launched && res?.reason === "not-installed" && res.package) {
+          toast.error(`${externalApp.label} is not installed`, {
+            action: {
+              label: "Install",
+              onClick: () =>
+                NativePlayer.openPlayStore({ package: res.package! }),
+            },
+            duration: 8000,
+          });
+        }
       } else {
-        // Browser: only fires on Android Chrome (intent://). On desktop
-        // it's a no-op — the user must click the visible VLC link button.
-        const ok = tryLaunchExternalFromBrowser(src);
+        // Browser: fires on Android Chrome (intent://) and iOS Safari
+        // (vlc-x-callback://). Desktop returns false — user must click
+        // the visible `<a href="vlc://…">` button.
+        const ok = tryLaunchExternalFromBrowser(src, {
+          package: externalApp.androidPackage,
+          title: title ?? "",
+        });
         if (!ok) {
-          // Desktop / iOS Safari — silent. Visible button stays there.
+          toast.message(`Tap "Open in ${externalApp.label}" to launch`);
         }
       }
     } catch (e: any) {
@@ -202,11 +220,23 @@ const VideoPlayer = ({
         // ↳ NEVER reload the page. Only the player.
         switch (data.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
-            console.warn("[HLS] network error → restartStream()", data.details);
-            // stopLoad + startLoad, exactly as requested.
-            window.setTimeout(() => {
-              if (!cancelled) restartStream();
-            }, 1200);
+            console.warn("[HLS] network error", data.details);
+            // Many Xtream servers 302-redirect `.m3u8` to raw MPEG-TS.
+            // HLS.js can't handle that — fall through to mpegts.js so
+            // live TV actually plays in the browser.
+            if (
+              data.details === "manifestLoadError" ||
+              data.details === "manifestLoadTimeOut" ||
+              data.details === "manifestParsingError"
+            ) {
+              try { hls.destroy(); } catch { /* ignore */ }
+              hlsRef.current = null;
+              setupMpegts();
+            } else {
+              window.setTimeout(() => {
+                if (!cancelled) restartStream();
+              }, 1200);
+            }
             break;
 
           case Hls.ErrorTypes.MEDIA_ERROR:
@@ -228,33 +258,18 @@ const VideoPlayer = ({
               }
             } else {
               console.error("[HLS] gave up recovering media errors");
-              try {
-                hls.destroy();
-              } catch {
-                /* ignore */
-              }
+              try { hls.destroy(); } catch { /* ignore */ }
               hlsRef.current = null;
+              // Last-chance fallback for live streams: raw MPEG-TS via mpegts.js.
+              if (live) setupMpegts();
             }
             break;
 
           default:
             console.error("[HLS] fatal other:", data.type, data.details);
-            if (data.details === "manifestParsingError" && live) {
-              try {
-                hls.destroy();
-              } catch {
-                /* ignore */
-              }
-              hlsRef.current = null;
-              setupMpegts();
-            } else {
-              try {
-                hls.destroy();
-              } catch {
-                /* ignore */
-              }
-              hlsRef.current = null;
-            }
+            try { hls.destroy(); } catch { /* ignore */ }
+            hlsRef.current = null;
+            if (live) setupMpegts();
             break;
         }
       });
@@ -359,6 +374,16 @@ const VideoPlayer = ({
   // External mode → minimal launching UI. On web desktop this is the
   // ONLY way to open the stream (we never auto-navigate the tab).
   if (mode === "external") {
+    // Pick the right URL scheme for the browser we're on.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isIOS = /iPad|iPhone|iPod/.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    const browserHref = isIOS
+      ? buildVlcIosUrl(src)
+      : isAndroid
+        ? undefined // Android uses tryLaunchExternalFromBrowser (intent://)
+        : buildVlcUrl(src);
+
     return (
       <div
         className={`relative w-full h-full bg-black flex items-center justify-center ${className}`}
@@ -372,7 +397,7 @@ const VideoPlayer = ({
             : undefined
         }
       >
-        {native ? (
+        {native || isAndroid ? (
           <button
             onClick={launchExternal}
             className="flex items-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground px-6 py-3 rounded-full font-medium shadow-lg backdrop-blur"
@@ -385,11 +410,11 @@ const VideoPlayer = ({
             Open in {externalApp.label}
           </button>
         ) : (
-          // Desktop / web: render an <a> so the click is a user gesture,
-          // never an automatic navigation. Opens vlc://<url> cleanly if
-          // VLC's URL handler is installed; silently ignored otherwise.
+          // iOS Safari / Desktop: render an <a> so the click is a user
+          // gesture, never an automatic navigation. iOS → vlc-x-callback,
+          // desktop → vlc://<url>.
           <a
-            href={buildVlcUrl(src)}
+            href={browserHref}
             className="flex items-center gap-2 bg-primary/90 hover:bg-primary text-primary-foreground px-6 py-3 rounded-full font-medium shadow-lg backdrop-blur"
           >
             <ExternalLink className="w-5 h-5" />

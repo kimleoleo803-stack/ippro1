@@ -101,3 +101,114 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Fix two bugs in the jp65 IPTV web/app:
+    1. External player not launching from the web app (Live TV + Movies
+       external mode) — "nothing happens" when tapping open-in-external
+       even with VidoPlay installed on the phone.
+    2. Live TV streaming does not play in the web browser (though Movies
+       do). Works inside native app, broken on browser.
+
+frontend:
+  - task: "External player launch (browser, Android+iOS+desktop)"
+    implemented: true
+    working: "NA"
+    file: "src/lib/externalLauncher.ts, src/pages/LiveTV.tsx, src/components/VideoPlayer.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Replaced iframe-based intent hack with a proper intent:// URL:
+              action=android.intent.action.VIEW, type=<MIME guess from URL>,
+              package=<user's chosen app>, S.browser_fallback_url=<stream URL>.
+            Fires via `window.location.href = intent://…` on user gesture.
+            Added iOS vlc-x-callback:// support, and a visible "Open in
+            {App}" button in LiveTV external mode so desktop/iOS users can
+            launch manually. Added MIME guessing helper (m3u8 / ts / mpd /
+            mp4 / mkv / webm / avi / mov). Visible button also wired into
+            the player shell.
+
+  - task: "Live TV streaming on browser (Supabase iptv-proxy + HLS fallback)"
+    implemented: true
+    working: "NA"
+    file: "supabase/functions/iptv-proxy/index.ts, src/lib/streamProxy.ts, src/lib/proxy.ts, src/components/VideoPlayer.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Root cause: Xtream `/live/<u>/<p>/<id>.m3u8` often 302-redirects
+            to raw MPEG-TS (`video/mp2t`). The edge function was detecting
+            m3u8 by URL path only and tried to rewrite the binary TS as a
+            manifest, corrupting the stream and breaking live TV on the
+            browser.
+            Fixes:
+              • iptv-proxy: detect real m3u8 by body magic `#EXTM3U` + actual
+                upstream content-type. TS streams now pass through as
+                binary. Accepts a `ua` query/POST param + `x-upstream-ua`
+                header, forwards it to the upstream server and preserves it
+                inside rewritten m3u8 segment URLs.
+              • streamProxy.ts / proxy.ts: forward the user's chosen
+                User-Agent (from Account → Player Identity) to the proxy so
+                IPTV providers that gate on UA accept the request.
+              • VideoPlayer.tsx: on HLS.js fatal
+                manifestLoadError/manifestParsingError/manifestLoadTimeOut,
+                fall through to mpegts.js so redirected TS live streams play.
+            ⚠️ Requires redeploy:
+                cd frontend && supabase functions deploy iptv-proxy
+
+  - task: "Native Android plugin (ExoPlayer + external app)"
+    implemented: true
+    working: "NA"
+    file: "android/app/src/main/java/com/livetv/app/nativeplayer/NativePlayerPlugin.java, src/native/nativePlayer.ts"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Forced-package path no longer silently falls through to another
+            app if VidoPlay isn't installed. Instead it resolves with
+            { launched:false, reason:"not-installed", package } so the UI
+            can offer an "Install" toast action. Added two plugin methods:
+            isInstalled(package) and openPlayStore(package). TypeScript
+            plugin wrapper typed accordingly and LiveTV + VideoPlayer
+            surface the install action via a sonner toast.
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "External player launch (browser, Android+iOS+desktop)"
+    - "Live TV streaming on browser (Supabase iptv-proxy + HLS fallback)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Bug fixes landed for jp65 external-player + live-TV-browser issues.
+      Client side builds cleanly (yarn build ✓, tsc --noEmit ✓). Need the
+      user to redeploy the Supabase edge function (`supabase functions
+      deploy iptv-proxy`) for the live-TV fix to take effect on the web.
+      Then please test:
+        a) Open Live TV in phone browser → tap a channel → should play
+           inline in the HLS.js player even when the server redirects
+           .m3u8 to raw .ts.
+        b) Switch Account → Playback Mode = External → tap a channel in
+           Live TV → Chrome should hand off to VidoPlay (or fallback app).
+        c) Inside the built APK, when VidoPlay is the chosen external
+           app but not installed, you should see a toast with an
+           "Install" action that opens the Play Store.
