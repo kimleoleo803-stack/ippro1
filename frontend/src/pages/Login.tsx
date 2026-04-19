@@ -1,124 +1,133 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { Tv, Server, User, KeyRound, Link as LinkIcon, UserCircle, Loader2 } from "lucide-react";
-import { useConnectProfile } from "@/hooks/useConnectProfile";
-import type { ProfileKind } from "@/types/xtream";
+import { Tv, User, KeyRound, Loader2, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 /**
- * Public Xtream / M3U login page.
- * Supports deep linking via query params:
- *   /login?type=xtream&name=My&server=http://x.com&user=u&pass=p
- *   /login?type=m3u&name=My&url=https://x.com/playlist.m3u
- * If `auto=1`, the form auto-submits after prefill.
+ * Subscriber Login — username + password for users created by the admin.
+ * Admin logs in from the same form and is routed to /admin.
  */
 const Login = () => {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const connect = useConnectProfile();
-
-  const [kind, setKind] = useState<ProfileKind>((params.get("type") as ProfileKind) || "xtream");
-  const [name, setName] = useState(params.get("name") || "");
-  const [serverUrl, setServerUrl] = useState(params.get("server") || "");
-  const [username, setUsername] = useState(params.get("user") || "");
-  const [password, setPassword] = useState(params.get("pass") || "");
-  const [m3uUrl, setM3uUrl] = useState(params.get("url") || "");
+  const { login } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!name) return;
-    if (kind === "xtream" && (!serverUrl || !username || !password)) return;
-    if (kind === "m3u" && !m3uUrl) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) return;
+    setError(null);
     setSubmitting(true);
-    const created = await connect({ kind, name, serverUrl, username, password, m3uUrl });
-    setSubmitting(false);
-    if (created) navigate("/");
+    try {
+      const user = await login(username.trim(), password);
+      if (user.role === "admin") navigate("/admin");
+      else navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  useEffect(() => {
-    if (params.get("auto") === "1") void handleSubmit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
-    <div className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/images/nebula-bg.png')" }} />
+    <div
+      data-testid="login-page"
+      className="relative min-h-screen w-full overflow-hidden flex items-center justify-center px-4"
+    >
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/images/nebula-bg.png')" }}
+      />
       <div className="absolute inset-0 bg-background/60" />
+
+      <button
+        type="button"
+        onClick={() => navigate("/welcome")}
+        data-testid="login-back-btn"
+        className="absolute z-20 top-6 left-6 w-11 h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+      >
+        <ArrowLeft className="w-5 h-5" />
+      </button>
 
       <motion.form
         onSubmit={handleSubmit}
-        initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 glass-card rounded-3xl p-8 w-full max-w-md"
       >
         <div className="flex flex-col items-center mb-6">
-          <div className="w-14 h-14 rounded-2xl glass flex items-center justify-center mb-3">
-            <Tv className="w-6 h-6 text-primary" />
+          <div
+            className="w-16 h-16 rounded-2xl glass flex items-center justify-center mb-3"
+            style={{
+              border: "1px solid hsla(40, 80%, 55%, 0.4)",
+              boxShadow: "0 0 40px hsla(40, 80%, 55%, 0.3)",
+            }}
+          >
+            <Tv className="w-8 h-8 text-primary gold-glow" strokeWidth={1.4} />
           </div>
-          <h1 className="font-display text-2xl tracking-[0.25em] gold-text">NADIBOX</h1>
-          <p className="text-muted-foreground text-xs mt-1">Connect your IPTV service</p>
-        </div>
-
-        <div className="flex glass rounded-xl p-1 mb-5">
-          {(["xtream", "m3u"] as ProfileKind[]).map((k) => (
-            <button
-              type="button" key={k}
-              onClick={() => setKind(k)}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
-                kind === k ? "bg-primary/20 text-primary" : "text-muted-foreground"
-              }`}
-            >
-              {k === "xtream" ? "Xtream Codes" : "M3U URL"}
-            </button>
-          ))}
+          <h1 className="font-display text-2xl tracking-[0.3em] gold-text">NADIBOX</h1>
+          <p className="text-muted-foreground text-xs tracking-[0.25em] uppercase mt-2">
+            Subscriber Sign-In
+          </p>
         </div>
 
         <div className="space-y-3">
-          <Field icon={UserCircle} placeholder="Profile Name" value={name} onChange={setName} />
-          {kind === "xtream" ? (
-            <>
-              <Field icon={Server} placeholder="Server URL (http://...)" value={serverUrl} onChange={setServerUrl} />
-              <Field icon={User} placeholder="Username" value={username} onChange={setUsername} />
-              <Field icon={KeyRound} placeholder="Password" value={password} onChange={setPassword} type="password" />
-            </>
-          ) : (
-            <Field icon={LinkIcon} placeholder="https://example.com/playlist.m3u" value={m3uUrl} onChange={setM3uUrl} />
-          )}
+          <div className="flex items-center gap-3 glass-input rounded-xl px-4 py-3">
+            <User className="w-5 h-5 text-muted-foreground shrink-0" />
+            <input
+              data-testid="login-username-input"
+              type="text"
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+              autoComplete="username"
+              autoFocus
+            />
+          </div>
+          <div className="flex items-center gap-3 glass-input rounded-xl px-4 py-3">
+            <KeyRound className="w-5 h-5 text-muted-foreground shrink-0" />
+            <input
+              data-testid="login-password-input"
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
+              autoComplete="current-password"
+            />
+          </div>
         </div>
+
+        {error && (
+          <div
+            data-testid="login-error"
+            className="mt-4 text-destructive text-xs bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2"
+          >
+            {error}
+          </div>
+        )}
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !username || !password}
+          data-testid="login-submit-btn"
           className="w-full mt-6 py-3 rounded-xl bg-gradient-to-r from-primary/80 to-primary/60 text-primary-foreground font-medium text-sm hover:from-primary hover:to-primary/80 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
         >
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-          {submitting ? "Connecting..." : "Connect & Load"}
+          {submitting ? "Signing in..." : "Sign In"}
         </button>
 
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          className="w-full mt-3 text-muted-foreground text-xs hover:text-foreground transition-colors"
-        >
-          Skip for now
-        </button>
+        <p className="mt-5 text-center text-muted-foreground text-[11px] tracking-wide">
+          No account? Contact your NADIBOX administrator to get credentials.
+        </p>
       </motion.form>
     </div>
   );
 };
-
-const Field = ({ icon: Icon, placeholder, value, onChange, type = "text" }: any) => (
-  <div className="flex items-center gap-3 glass-input rounded-xl px-4 py-3">
-    <Icon className="w-5 h-5 text-muted-foreground shrink-0" />
-    <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground outline-none text-sm"
-      autoComplete="off"
-    />
-  </div>
-);
 
 export default Login;
