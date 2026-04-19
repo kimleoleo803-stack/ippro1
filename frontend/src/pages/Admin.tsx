@@ -13,7 +13,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import LanguageSelect from "@/components/LanguageSelect";
 import {
   apiCreateUser,
   apiDeleteUser,
@@ -27,6 +29,7 @@ import {
 
 const Admin = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [users, setUsers] = useState<NadiUser[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -64,7 +67,7 @@ const Admin = () => {
       setUsers(u);
       setSettings(s);
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Failed to load");
+      showToast(e instanceof Error ? e.message : t("admin.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -91,10 +94,10 @@ const Admin = () => {
       setNuServer("");
       setNuXUser("");
       setNuXPass("");
-      showToast("User created");
+      showToast(t("admin.userCreated"));
       await refreshAll();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : "Create failed");
+      showToast(e instanceof Error ? e.message : t("admin.opFailed"));
     } finally {
       setCreating(false);
     }
@@ -128,19 +131,20 @@ const Admin = () => {
             </div>
             <div>
               <h1 className="font-display text-lg sm:text-xl md:text-2xl tracking-[0.2em] sm:tracking-[0.3em] gold-text">
-                NADIBOX ADMIN
+                {t("admin.title")}
               </h1>
               <p className="text-muted-foreground text-[9px] sm:text-[10px] tracking-[0.3em] uppercase">
-                Subscriber Control Panel
+                {t("admin.subtitle")}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <LanguageSelect align="right" />
             <button
               onClick={refreshAll}
               data-testid="admin-refresh-btn"
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-full glass flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/40 transition-colors"
-              title="Refresh"
+              title={t("common.refresh")}
             >
               <RefreshCcw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
             </button>
@@ -149,7 +153,7 @@ const Admin = () => {
               data-testid="admin-logout-btn"
               className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full glass text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors text-xs sm:text-sm"
             >
-              <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">{t("admin.logout")}</span>
             </button>
           </div>
         </header>
@@ -171,28 +175,28 @@ const Admin = () => {
             settings={settings}
             onSaved={(s) => {
               setSettings(s);
-              showToast("Settings saved");
+              showToast(t("admin.settingsSaved"));
             }}
           />
 
           {/* Create user */}
           <section className="glass-card rounded-2xl p-6">
             <h2 className="font-display text-lg tracking-[0.2em] gold-text mb-4">
-              CREATE SUBSCRIBER
+              {t("admin.createHeading")}
             </h2>
             <form
               onSubmit={handleCreate}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3"
             >
               <Input
-                label="Username"
+                label={t("admin.usernameLabel")}
                 value={nuUsername}
                 onChange={setNuUsername}
                 testId="nu-username"
                 required
               />
               <Input
-                label="Password"
+                label={t("admin.passwordLabel")}
                 value={nuPassword}
                 onChange={setNuPassword}
                 type="text"
@@ -200,7 +204,7 @@ const Admin = () => {
                 required
               />
               <Input
-                label="Days"
+                label={t("admin.daysLabel")}
                 value={String(nuDays)}
                 onChange={(v) => setNuDays(Math.max(1, parseInt(v || "0") || 1))}
                 type="number"
@@ -208,7 +212,7 @@ const Admin = () => {
               />
               <div>
                 <label className="text-[11px] text-muted-foreground tracking-[0.2em] uppercase block mb-1">
-                  Xtream Mode
+                  {t("admin.xtreamMode")}
                 </label>
                 <select
                   value={nuMode}
@@ -216,26 +220,26 @@ const Admin = () => {
                   data-testid="nu-mode"
                   className="w-full glass-input rounded-lg px-3 py-2 text-sm text-foreground outline-none"
                 >
-                  <option value="shared">Shared (global)</option>
-                  <option value="own">Own server (per-user)</option>
+                  <option value="shared">{t("admin.modeShared")}</option>
+                  <option value="own">{t("admin.modeOwn")}</option>
                 </select>
               </div>
               {nuMode === "own" && (
                 <>
                   <Input
-                    label="Xtream Server URL"
+                    label={t("admin.serverUrl")}
                     value={nuServer}
                     onChange={setNuServer}
                     testId="nu-server"
                   />
                   <Input
-                    label="Xtream Username"
+                    label={t("admin.xtreamUsername")}
                     value={nuXUser}
                     onChange={setNuXUser}
                     testId="nu-xuser"
                   />
                   <Input
-                    label="Xtream Password"
+                    label={t("admin.xtreamPassword")}
                     value={nuXPass}
                     onChange={setNuXPass}
                     testId="nu-xpass"
@@ -254,7 +258,7 @@ const Admin = () => {
                   ) : (
                     <Plus className="w-4 h-4" />
                   )}
-                  {creating ? "Creating..." : "Create User"}
+                  {creating ? t("admin.creating") : t("admin.createUser")}
                 </button>
               </div>
             </form>
@@ -263,10 +267,10 @@ const Admin = () => {
           {/* User list */}
           <section className="glass-card rounded-2xl p-6">
             <h2 className="font-display text-lg tracking-[0.2em] gold-text mb-4">
-              SUBSCRIBERS ({users.length})
+              {t("admin.subscribersHeading", { count: users.length })}
             </h2>
             {users.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No subscribers yet.</p>
+              <p className="text-muted-foreground text-sm">{t("admin.noSubscribers")}</p>
             ) : (
               <div className="space-y-3">
                 {users.map((u) => (
@@ -325,6 +329,7 @@ const SettingsPanel = ({
   settings: Settings | null;
   onSaved: (s: Settings) => void;
 }) => {
+  const { t } = useTranslation();
   const [wa, setWa] = useState(settings?.whatsapp_number ?? "");
   const [ss, setSs] = useState(settings?.shared_xtream_server ?? "");
   const [su, setSu] = useState(settings?.shared_xtream_username ?? "");
@@ -358,13 +363,13 @@ const SettingsPanel = ({
   return (
     <section className="glass-card rounded-2xl p-6">
       <h2 className="font-display text-lg tracking-[0.2em] gold-text mb-4">
-        GLOBAL SETTINGS
+        {t("admin.settingsHeading")}
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        <Input label="WhatsApp (e.g. +15551234567)" value={wa} onChange={setWa} testId="set-whatsapp" />
-        <Input label="Shared Xtream Server" value={ss} onChange={setSs} testId="set-shared-server" />
-        <Input label="Shared Xtream Username" value={su} onChange={setSu} testId="set-shared-user" />
-        <Input label="Shared Xtream Password" value={sp} onChange={setSp} testId="set-shared-pass" />
+        <Input label={t("admin.whatsapp")} value={wa} onChange={setWa} testId="set-whatsapp" />
+        <Input label={t("admin.sharedServer")} value={ss} onChange={setSs} testId="set-shared-server" />
+        <Input label={t("admin.sharedUsername")} value={su} onChange={setSu} testId="set-shared-user" />
+        <Input label={t("admin.sharedPassword")} value={sp} onChange={setSp} testId="set-shared-pass" />
       </div>
       <div className="flex justify-end mt-4">
         <button
@@ -374,7 +379,7 @@ const SettingsPanel = ({
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary/80 hover:bg-primary text-primary-foreground font-medium text-sm transition-colors disabled:opacity-60"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Saving..." : "Save Settings"}
+          {saving ? t("common.saving") : t("admin.saveSettings")}
         </button>
       </div>
     </section>
@@ -390,6 +395,7 @@ const UserRow = ({
   onChanged: () => void;
   onToast: (m: string) => void;
 }) => {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [pwd, setPwd] = useState("");
   const [mode, setMode] = useState<"shared" | "own">(user.xtream_mode || "shared");
@@ -401,10 +407,10 @@ const UserRow = ({
     setBusy(true);
     try {
       await apiUpdateUser(user.id, { extend_days: days });
-      onToast(`${days > 0 ? "Added" : "Removed"} ${Math.abs(days)} day(s)`);
+      onToast(days > 0 ? t("admin.dayAdded", { count: days }) : t("admin.dayRemoved", { count: -days }));
       onChanged();
     } catch (e) {
-      onToast(e instanceof Error ? e.message : "Failed");
+      onToast(e instanceof Error ? e.message : t("admin.opFailed"));
     } finally {
       setBusy(false);
     }
@@ -415,11 +421,11 @@ const UserRow = ({
     setBusy(true);
     try {
       await apiUpdateUser(user.id, { password: pwd });
-      onToast("Password updated");
+      onToast(t("admin.passwordUpdated"));
       setPwd("");
       onChanged();
     } catch (e) {
-      onToast(e instanceof Error ? e.message : "Failed");
+      onToast(e instanceof Error ? e.message : t("admin.opFailed"));
     } finally {
       setBusy(false);
     }
@@ -434,24 +440,24 @@ const UserRow = ({
         xtream_username: xu,
         xtream_password: xp,
       });
-      onToast("Xtream saved");
+      onToast(t("admin.xtreamSaved"));
       onChanged();
     } catch (e) {
-      onToast(e instanceof Error ? e.message : "Failed");
+      onToast(e instanceof Error ? e.message : t("admin.opFailed"));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async () => {
-    if (!window.confirm(`Delete user "${user.username}"?`)) return;
+    if (!window.confirm(t("admin.confirmDeleteUser", { username: user.username }))) return;
     setBusy(true);
     try {
       await apiDeleteUser(user.id);
-      onToast("User deleted");
+      onToast(t("admin.userDeleted"));
       onChanged();
     } catch (e) {
-      onToast(e instanceof Error ? e.message : "Failed");
+      onToast(e instanceof Error ? e.message : t("admin.opFailed"));
     } finally {
       setBusy(false);
     }
@@ -476,12 +482,12 @@ const UserRow = ({
             </p>
             <p className="text-muted-foreground text-xs flex items-center gap-2">
               <Calendar className="w-3 h-3" />
-              {user.expiry_at ? new Date(user.expiry_at).toLocaleDateString() : "no expiry"}
-              <span className={`ml-2 ${statusColor}`}>
+              {user.expiry_at ? new Date(user.expiry_at).toLocaleDateString() : t("admin.noExpiry")}
+              <span className={`ms-2 ${statusColor}`}>
                 {user.is_expired
-                  ? "EXPIRED"
+                  ? t("admin.expired")
                   : user.days_remaining != null
-                    ? `${user.days_remaining} day(s) left`
+                    ? t("admin.daysLeft", { count: user.days_remaining })
                     : ""}
               </span>
             </p>
@@ -494,21 +500,21 @@ const UserRow = ({
             data-testid={`user-${user.username}-add30`}
             className="px-3 py-1.5 rounded-lg glass text-xs text-primary hover:border-primary/40 transition-colors disabled:opacity-60"
           >
-            +30d
+            {t("admin.addDays", { n: 30 })}
           </button>
           <button
             onClick={() => extendDays(7)}
             disabled={busy}
             className="px-3 py-1.5 rounded-lg glass text-xs text-primary hover:border-primary/40 transition-colors disabled:opacity-60"
           >
-            +7d
+            {t("admin.addDays", { n: 7 })}
           </button>
           <button
             onClick={() => extendDays(-7)}
             disabled={busy}
             className="px-3 py-1.5 rounded-lg glass text-xs text-muted-foreground hover:border-destructive/40 transition-colors disabled:opacity-60"
           >
-            -7d
+            {t("admin.subDays", { n: 7 })}
           </button>
           <button
             onClick={remove}
@@ -516,7 +522,7 @@ const UserRow = ({
             data-testid={`user-${user.username}-delete`}
             className="px-3 py-1.5 rounded-lg glass text-xs text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60 flex items-center gap-1"
           >
-            <Trash2 className="w-3 h-3" /> Delete
+            <Trash2 className="w-3 h-3" /> {t("admin.deleteUser")}
           </button>
         </div>
       </div>
@@ -524,32 +530,32 @@ const UserRow = ({
       {/* Advanced: xtream + password */}
       <details className="mt-3">
         <summary className="cursor-pointer text-xs text-muted-foreground tracking-[0.2em] uppercase hover:text-primary">
-          Advanced
+          {t("admin.advanced")}
         </summary>
         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
             <label className="text-[11px] text-muted-foreground tracking-[0.2em] uppercase block mb-1">
-              Xtream Mode
+              {t("admin.xtreamMode")}
             </label>
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value as "shared" | "own")}
               className="w-full glass-input rounded-lg px-3 py-2 text-sm text-foreground outline-none"
             >
-              <option value="shared">Shared (global)</option>
-              <option value="own">Own server</option>
+              <option value="shared">{t("admin.modeShared")}</option>
+              <option value="own">{t("admin.modeOwn")}</option>
             </select>
           </div>
-          <Input label="Server" value={xs} onChange={setXs} />
-          <Input label="Xt. User" value={xu} onChange={setXu} />
-          <Input label="Xt. Pass" value={xp} onChange={setXp} />
+          <Input label={t("admin.server")} value={xs} onChange={setXs} />
+          <Input label={t("admin.xtUser")} value={xu} onChange={setXu} />
+          <Input label={t("admin.xtPass")} value={xp} onChange={setXp} />
           <div className="lg:col-span-4 flex gap-2 justify-end">
             <button
               onClick={saveXtream}
               disabled={busy}
               className="flex items-center gap-2 px-4 py-2 rounded-lg glass text-xs text-primary hover:border-primary/40 transition-colors disabled:opacity-60"
             >
-              <Server className="w-3 h-3" /> Save Xtream
+              <Server className="w-3 h-3" /> {t("admin.saveXtream")}
             </button>
           </div>
           <div className="lg:col-span-4 flex items-center gap-2">
@@ -557,7 +563,7 @@ const UserRow = ({
               type="text"
               value={pwd}
               onChange={(e) => setPwd(e.target.value)}
-              placeholder="New password"
+              placeholder={t("admin.newPassword")}
               className="flex-1 glass-input rounded-lg px-3 py-2 text-sm text-foreground outline-none"
             />
             <button
@@ -565,7 +571,7 @@ const UserRow = ({
               disabled={busy || !pwd}
               className="px-4 py-2 rounded-lg glass text-xs text-primary hover:border-primary/40 transition-colors disabled:opacity-60"
             >
-              Update password
+              {t("admin.updatePassword")}
             </button>
           </div>
         </div>

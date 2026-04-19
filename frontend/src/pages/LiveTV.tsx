@@ -12,12 +12,14 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 import PageLayout from "@/components/PageLayout";
 import VideoPlayer from "@/components/VideoPlayer";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useLiveChannels, useReloadPlaylist, useShortEpg } from "@/hooks/useXtreamData";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/hooks/useAuth";
 import type { Channel } from "@/types/xtream";
 
 import { NativePlayer, isNativeApp } from "@/native/nativePlayer";
@@ -30,6 +32,8 @@ type ViewMode = "list" | "grid";
 
 const LiveTV = () => {
   const { activeProfile } = useProfiles();
+  const { t } = useTranslation();
+  const { user } = useAuth();
   const { data: channels = [], isLoading, error } = useLiveChannels(activeProfile);
   const reload = useReloadPlaylist();
   const { isFavorite, toggle } = useFavorites(activeProfile?.id, "live");
@@ -43,11 +47,13 @@ const LiveTV = () => {
   const mode = getPlaybackMode();
   const native = isNativeApp();
   const externalApp = getExternalApp();
+  const isPaidUser = user?.role === "user";
 
   const categories = useMemo(
     () => ["All", ...Array.from(new Set(channels.map((c) => c.category)))],
     [channels]
   );
+  // Note: display of "All" is localized via t("common.all") in the render
 
   const filtered = useMemo(
     () =>
@@ -77,17 +83,14 @@ const LiveTV = () => {
             userAgent: getUserAgent(),
             package: externalApp.androidPackage,
           });
-          toast.success(`Opening ${ch.name} in ${externalApp.label}`);
+          toast.success(t("liveTV.openingInApp", { channel: ch.name, app: externalApp.label }));
         } else {
           tryLaunchExternalFromBrowser(ch.streamUrl);
-          toast.message(
-            `Sent to ${externalApp.label}. Install the APK for reliable auto-launch.`
-          );
+          toast.message(t("liveTV.sentToApp", { app: externalApp.label }));
         }
       } catch (e: any) {
         toast.error(
-          e?.message ||
-            `Couldn't open ${externalApp.label}. Install it from Account → External Player.`
+          e?.message || t("liveTV.couldntOpen", { app: externalApp.label }),
         );
       }
       // Still mark as selected so EPG / title updates
@@ -101,13 +104,17 @@ const LiveTV = () => {
 
   if (!activeProfile) {
     return (
-      <PageLayout title="LIVE TV">
+      <PageLayout title={t("liveTV.title")}>
         <div className="h-full flex items-center justify-center">
           <div className="glass-card rounded-2xl p-6 text-center max-w-sm">
-            <p className="text-foreground text-sm mb-3">No active server.</p>
-            <Link to="/account" className="text-primary text-xs underline">
-              Add a profile
-            </Link>
+            <p className="text-foreground text-sm mb-3">{t("liveTV.noActiveServer")}</p>
+            {isPaidUser ? (
+              <p className="text-muted-foreground text-xs">{t("liveTV.contactAdmin")}</p>
+            ) : (
+              <Link to="/account" className="text-primary text-xs underline">
+                {t("liveTV.addProfile")}
+              </Link>
+            )}
           </div>
         </div>
       </PageLayout>
@@ -236,7 +243,7 @@ const LiveTV = () => {
   );
 
   return (
-    <PageLayout title="LIVE TV">
+    <PageLayout title={t("liveTV.title")}>
       <div className="h-full flex flex-col gap-3">
         {/* Top bar: search · category · favourites · view · external badge */}
         <div className="flex flex-wrap items-center gap-2">
@@ -244,7 +251,7 @@ const LiveTV = () => {
             <Search className="w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search channels…"
+              placeholder={t("liveTV.searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="bg-transparent text-foreground placeholder:text-muted-foreground text-xs outline-none flex-1"
@@ -260,7 +267,7 @@ const LiveTV = () => {
             >
               {categories.map((c) => (
                 <option key={c} value={c} className="bg-background">
-                  {c}
+                  {c === "All" ? t("common.all") : c}
                 </option>
               ))}
             </select>
@@ -271,14 +278,14 @@ const LiveTV = () => {
             className={`glass-card rounded-xl px-3 py-2 flex items-center gap-1.5 ${
               showFavOnly ? "border border-primary/40" : ""
             }`}
-            title="Favourites only"
+            title={t("liveTV.favs")}
           >
             <Star
               className={`w-3.5 h-3.5 ${
                 showFavOnly ? "text-primary fill-primary" : "text-muted-foreground"
               }`}
             />
-            <span className="text-[11px] text-foreground/80">Favs</span>
+            <span className="text-[11px] text-foreground/80">{t("liveTV.favs")}</span>
           </button>
 
           <div className="glass-card rounded-xl p-0.5 flex items-center">
@@ -287,7 +294,7 @@ const LiveTV = () => {
               className={`px-2.5 py-1.5 rounded-lg ${
                 viewMode === "list" ? "bg-primary/20 text-primary" : "text-muted-foreground"
               }`}
-              title="List view"
+              title={t("liveTV.listView")}
             >
               <ListIcon className="w-3.5 h-3.5" />
             </button>
@@ -296,7 +303,7 @@ const LiveTV = () => {
               className={`px-2.5 py-1.5 rounded-lg ${
                 viewMode === "grid" ? "bg-primary/20 text-primary" : "text-muted-foreground"
               }`}
-              title="Grid view"
+              title={t("liveTV.gridView")}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
@@ -305,7 +312,7 @@ const LiveTV = () => {
           <button
             onClick={() => reload(activeProfile.id)}
             className="glass-card rounded-xl p-2"
-            title="Reload"
+            title={t("common.refresh")}
           >
             <RefreshCw className="w-3.5 h-3.5 text-muted-foreground hover:text-primary" />
           </button>
@@ -337,7 +344,7 @@ const LiveTV = () => {
                   </p>
                   <p className="text-muted-foreground text-[10px] truncate">
                     {nowPlaying?.title
-                      ? `Now: ${nowPlaying.title}`
+                      ? t("liveTV.nowPrefix", { title: nowPlaying.title })
                       : selectedChannel.category}
                   </p>
                 </div>
@@ -345,7 +352,7 @@ const LiveTV = () => {
                   onClick={() => onChannelClick(selectedChannel)}
                   className="text-[11px] text-primary flex items-center gap-1 glass px-3 py-1.5 rounded-lg"
                 >
-                  <ExternalLink className="w-3 h-3" /> Re-open
+                  <ExternalLink className="w-3 h-3" /> {t("liveTV.reopen")}
                 </button>
               </div>
             )}
@@ -358,12 +365,12 @@ const LiveTV = () => {
               )}
               {error && (
                 <p className="text-destructive text-xs px-2">
-                  Failed to load. Check credentials.
+                  {t("liveTV.failedLoad")}
                 </p>
               )}
               {!isLoading && filtered.length === 0 && (
                 <p className="text-muted-foreground text-xs text-center py-6">
-                  No channels found.
+                  {t("liveTV.noChannels")}
                 </p>
               )}
               {viewMode === "list" ? renderList() : renderGrid()}
@@ -373,7 +380,7 @@ const LiveTV = () => {
             {selectedChannel && epg.length > 0 && (
               <div className="glass-card rounded-xl p-2 max-h-36 overflow-y-auto">
                 <p className="text-[10px] text-muted-foreground mb-1 px-1">
-                  EPG · {selectedChannel.name}
+                  {t("liveTV.epgFor", { name: selectedChannel.name })}
                 </p>
                 {epg.slice(0, 6).map((e, i) => (
                   <div
@@ -409,12 +416,12 @@ const LiveTV = () => {
                 )}
                 {error && (
                   <p className="text-destructive text-xs px-2">
-                    Failed to load. Check credentials.
+                    {t("liveTV.failedLoad")}
                   </p>
                 )}
                 {!isLoading && filtered.length === 0 && (
                   <p className="text-muted-foreground text-xs text-center py-6">
-                    No channels found.
+                    {t("liveTV.noChannels")}
                   </p>
                 )}
                 {viewMode === "list" ? renderList() : renderGrid()}
@@ -433,7 +440,7 @@ const LiveTV = () => {
                 ) : (
                   <div className="text-center">
                     <Play className="w-12 h-12 text-primary/50 mx-auto mb-2" />
-                    <p className="text-muted-foreground text-sm">Select a channel</p>
+                    <p className="text-muted-foreground text-sm">{t("liveTV.selectChannel")}</p>
                   </div>
                 )}
               </div>
@@ -445,7 +452,7 @@ const LiveTV = () => {
                   </p>
                   <p className="text-muted-foreground text-[10px]">
                     {nowPlaying?.title
-                      ? `Now: ${nowPlaying.title}`
+                      ? t("liveTV.nowPrefix", { title: nowPlaying.title })
                       : selectedChannel.category}
                   </p>
                 </div>
@@ -455,7 +462,7 @@ const LiveTV = () => {
         )}
 
         <div className="text-muted-foreground text-[10px]">
-          {channels.length} channel{channels.length !== 1 ? "s" : ""}
+          {t("liveTV.channels", { count: channels.length })}
         </div>
       </div>
     </PageLayout>

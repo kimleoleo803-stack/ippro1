@@ -9,6 +9,7 @@ import {
   Loader2,
   Globe2,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { ProfileKind } from "@/types/xtream";
 import { apiPublicSharedXtream } from "@/lib/nadiAuth";
 
@@ -30,6 +31,7 @@ interface Props {
 type Advanced = "shared" | "own";
 
 const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
+  const { t } = useTranslation();
   const [kind, setKind] = useState<ProfileKind>("xtream");
   const [advanced, setAdvanced] = useState<Advanced>("shared");
   const [name, setName] = useState("");
@@ -131,7 +133,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
               data-testid="add-server-title"
               className="text-foreground text-xl sm:text-2xl font-display tracking-[0.2em] gold-text text-center mb-5"
             >
-              ADD PLAYLIST
+              {t("addServer.title")}
             </h2>
 
             {/* Kind toggle */}
@@ -145,7 +147,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                     kind === k ? "bg-primary/20 text-primary" : "text-muted-foreground"
                   }`}
                 >
-                  {k === "xtream" ? "Xtream Codes" : "M3U URL"}
+                  {k === "xtream" ? t("addServer.xtreamTab") : t("addServer.m3uTab")}
                 </button>
               ))}
             </div>
@@ -154,7 +156,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
             {kind === "xtream" && (
               <div className="mb-4">
                 <label className="text-[11px] text-muted-foreground tracking-[0.25em] uppercase block mb-2">
-                  Advanced
+                  {t("addServer.advanced")}
                 </label>
                 <div className="flex glass rounded-xl p-1">
                   <button
@@ -167,7 +169,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                     }`}
                   >
                     <Globe2 className="w-3.5 h-3.5" />
-                    Shared
+                    {t("addServer.shared")}
                   </button>
                   <button
                     onClick={() => setAdvanced("own")}
@@ -179,13 +181,13 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                     }`}
                   >
                     <Server className="w-3.5 h-3.5" />
-                    Own server
+                    {t("addServer.ownServer")}
                   </button>
                 </div>
                 <p className="text-[10px] text-muted-foreground tracking-wide mt-2">
                   {advanced === "shared"
-                    ? "Uses the Xtream server configured by the admin in Global Settings."
-                    : "Enter your personal Xtream server credentials."}
+                    ? t("addServer.sharedHint")
+                    : t("addServer.ownHint")}
                 </p>
               </div>
             )}
@@ -194,7 +196,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
             <div className="space-y-3">
               <Field
                 icon={UserCircle}
-                placeholder="Profile Name (e.g., Family TV)"
+                placeholder={t("addServer.profileNamePlaceholder")}
                 value={name}
                 onChange={setName}
                 testId="add-name"
@@ -206,14 +208,12 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                       {sharedLoading && (
                         <div className="text-xs text-muted-foreground flex items-center gap-2 py-2">
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          Loading shared server details...
+                          {t("addServer.loadingShared")}
                         </div>
                       )}
                       {!sharedLoading && sharedConfigured === false && (
                         <div className="text-destructive text-xs bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
-                          The admin hasn't configured a shared server yet. Switch
-                          to <span className="font-medium">Own server</span> or ask
-                          your admin to set it up.
+                          {t("addServer.sharedNotConfigured")}
                         </div>
                       )}
                       {!sharedLoading && sharedReady && (
@@ -236,7 +236,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                             </span>
                           </div>
                           <p className="text-[10px] text-primary/80 tracking-wide pt-1">
-                            Shared server · Auto-filled from Global Settings
+                            {t("addServer.autoFilled")}
                           </p>
                         </div>
                       )}
@@ -248,21 +248,21 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                     <>
                       <Field
                         icon={Server}
-                        placeholder="Server URL (http://...)"
+                        placeholder={t("addServer.serverUrlPlaceholder")}
                         value={serverUrl}
                         onChange={setServerUrl}
                         testId="add-server-url"
                       />
                       <Field
                         icon={User}
-                        placeholder="Username"
+                        placeholder={t("addServer.usernamePlaceholder")}
                         value={username}
                         onChange={setUsername}
                         testId="add-user"
                       />
                       <Field
                         icon={KeyRound}
-                        placeholder="Password"
+                        placeholder={t("addServer.passwordPlaceholder")}
                         value={password}
                         onChange={setPassword}
                         type="password"
@@ -274,7 +274,7 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
               ) : (
                 <Field
                   icon={LinkIcon}
-                  placeholder="https://example.com/playlist.m3u"
+                  placeholder={t("addServer.m3uPlaceholder")}
                   value={m3uUrl}
                   onChange={setM3uUrl}
                   testId="add-m3u-url"
@@ -293,23 +293,23 @@ const AddServerDialog = ({ open, onClose, onSubmit }: Props) => {
                 className="flex-1 py-3 rounded-xl bg-gradient-to-r from-primary/80 to-primary/60 text-primary-foreground font-medium text-sm hover:from-primary hover:to-primary/80 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {submitting ? "Connecting..." : "Connect"}
+                {submitting ? t("common.connecting") : t("common.connect")}
               </button>
               <button
                 onClick={onClose}
                 disabled={submitting}
                 className="flex-1 py-3 rounded-xl glass text-foreground font-medium text-sm hover:border-primary/40 transition-all"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
             </div>
 
             <p className="text-muted-foreground text-xs text-center mt-4">
               {kind === "xtream"
                 ? advanced === "shared"
-                  ? "Pick Shared to reuse the NADIBOX global server."
-                  : "Enter your Xtream Codes credentials to load TV, Movies & Series."
-                : "Paste any M3U / M3U8 playlist URL to import."}
+                  ? t("addServer.hintShared")
+                  : t("addServer.hintOwn")
+                : t("addServer.hintM3u")}
             </p>
           </motion.div>
         </motion.div>
